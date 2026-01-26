@@ -10,7 +10,7 @@ const approveSchema = z.object({
   approvedBy: z.string().min(1, "Approver name is required"),
   rating: z.number().optional(),
   comments: z.string().optional(),
-  modifications: z.record(z.any()).optional(), // For edited times
+  modifications: z.record(z.string(), z.any()).optional(), // For edited times
 });
 
 export async function POST(
