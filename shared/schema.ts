@@ -327,14 +327,58 @@ const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
 
 export const insertTimesheetSchema = createInsertSchema(timesheets).omit({
   id: true,
-  userId: true, // Will be set from authenticated user
+  userId: true, 
   createdAt: true,
   updatedAt: true,
   batchId: true,
   clientApprovedAt: true,
   clientApprovedBy: true,
   clientComments: true,
-  createdByClient: true, // Will be set by backend
+  clientModifications: true,
+  clientRating: true,
+  driverComments: true,
+  driverRating: true,
+  deletedAt: true,
+  deletedBy: true,
+  // Omit snake_case fields that we are replacing with camelCase
+  driverName: true,
+  weekStartDate: true,
+  approvalStatus: true,
+  // Monday
+  mondayClient: true, mondayStart: true, mondayEnd: true, mondayBreak: true, 
+  mondayPoa: true, mondayOtherWork: true, mondayTotal: true, mondayReview: true, 
+  mondayNightOut: true, mondayExpenseAmount: true, mondayExpenseReceipt: true, 
+  mondayDriverRating: true, mondayDriverComments: true,
+  // Tuesday
+  tuesdayClient: true, tuesdayStart: true, tuesdayEnd: true, tuesdayBreak: true, 
+  tuesdayPoa: true, tuesdayOtherWork: true, tuesdayTotal: true, tuesdayReview: true, 
+  tuesdayNightOut: true, tuesdayExpenseAmount: true, tuesdayExpenseReceipt: true, 
+  tuesdayDriverRating: true, tuesdayDriverComments: true,
+  // Wednesday
+  wednesdayClient: true, wednesdayStart: true, wednesdayEnd: true, wednesdayBreak: true, 
+  wednesdayPoa: true, wednesdayOtherWork: true, wednesdayTotal: true, wednesdayReview: true, 
+  wednesdayNightOut: true, wednesdayExpenseAmount: true, wednesdayExpenseReceipt: true, 
+  wednesdayDriverRating: true, wednesdayDriverComments: true,
+  // Thursday
+  thursdayClient: true, thursdayStart: true, thursdayEnd: true, thursdayBreak: true, 
+  thursdayPoa: true, thursdayOtherWork: true, thursdayTotal: true, thursdayReview: true, 
+  thursdayNightOut: true, thursdayExpenseAmount: true, thursdayExpenseReceipt: true, 
+  thursdayDriverRating: true, thursdayDriverComments: true,
+  // Friday
+  fridayClient: true, fridayStart: true, fridayEnd: true, fridayBreak: true, 
+  fridayPoa: true, fridayOtherWork: true, fridayTotal: true, fridayReview: true, 
+  fridayNightOut: true, fridayExpenseAmount: true, fridayExpenseReceipt: true, 
+  fridayDriverRating: true, fridayDriverComments: true,
+  // Saturday
+  saturdayClient: true, saturdayStart: true, saturdayEnd: true, saturdayBreak: true, 
+  saturdayPoa: true, saturdayOtherWork: true, saturdayTotal: true, saturdayReview: true, 
+  saturdayNightOut: true, saturdayExpenseAmount: true, saturdayExpenseReceipt: true, 
+  saturdayDriverRating: true, saturdayDriverComments: true,
+  // Sunday
+  sundayClient: true, sundayStart: true, sundayEnd: true, sundayBreak: true, 
+  sundayPoa: true, sundayOtherWork: true, sundayTotal: true, sundayReview: true, 
+  sundayNightOut: true, sundayExpenseAmount: true, sundayExpenseReceipt: true, 
+  sundayDriverRating: true, sundayDriverComments: true,
 }).extend({
   driverName: z.string().min(1, "Driver name is required"),
   weekStartDate: z.string().refine((val) => !isNaN(Date.parse(val)), {
