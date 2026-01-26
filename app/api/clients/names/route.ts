@@ -14,7 +14,7 @@ export async function GET() {
   }
 
   try {
-    const allClients = await db.select({ name: clients.clientName }).from(clients).orderBy(desc(clients.clientName));
+    const allClients = await db.select({ name: clients.companyName }).from(clients).orderBy(desc(clients.companyName));
     const names = allClients.map(c => c.name);
     
     return NextResponse.json(names);
