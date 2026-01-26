@@ -397,6 +397,11 @@ export const insertTimesheetSchema = createInsertSchema(timesheets).omit({
   mondayOtherWork: z.string().default("0"),
   mondayTotal: z.string().default("0"),
   mondayReview: z.string().default(""),
+  mondayNightOut: z.string().default("false"),
+  mondayExpenseAmount: z.string().default(""),
+  mondayExpenseReceipt: z.string().default(""),
+  mondayDriverRating: z.number().optional(),
+  mondayDriverComments: z.string().optional(),
   
   // Tuesday
   tuesdayClient: z.string().default(""),
@@ -407,6 +412,11 @@ export const insertTimesheetSchema = createInsertSchema(timesheets).omit({
   tuesdayOtherWork: z.string().default("0"),
   tuesdayTotal: z.string().default("0"),
   tuesdayReview: z.string().default(""),
+  tuesdayNightOut: z.string().default("false"),
+  tuesdayExpenseAmount: z.string().default(""),
+  tuesdayExpenseReceipt: z.string().default(""),
+  tuesdayDriverRating: z.number().optional(),
+  tuesdayDriverComments: z.string().optional(),
   
   // Wednesday
   wednesdayClient: z.string().default(""),
@@ -417,6 +427,11 @@ export const insertTimesheetSchema = createInsertSchema(timesheets).omit({
   wednesdayOtherWork: z.string().default("0"),
   wednesdayTotal: z.string().default("0"),
   wednesdayReview: z.string().default(""),
+  wednesdayNightOut: z.string().default("false"),
+  wednesdayExpenseAmount: z.string().default(""),
+  wednesdayExpenseReceipt: z.string().default(""),
+  wednesdayDriverRating: z.number().optional(),
+  wednesdayDriverComments: z.string().optional(),
   
   // Thursday
   thursdayClient: z.string().default(""),
@@ -427,6 +442,11 @@ export const insertTimesheetSchema = createInsertSchema(timesheets).omit({
   thursdayOtherWork: z.string().default("0"),
   thursdayTotal: z.string().default("0"),
   thursdayReview: z.string().default(""),
+  thursdayNightOut: z.string().default("false"),
+  thursdayExpenseAmount: z.string().default(""),
+  thursdayExpenseReceipt: z.string().default(""),
+  thursdayDriverRating: z.number().optional(),
+  thursdayDriverComments: z.string().optional(),
   
   // Friday
   fridayClient: z.string().default(""),
@@ -437,6 +457,11 @@ export const insertTimesheetSchema = createInsertSchema(timesheets).omit({
   fridayOtherWork: z.string().default("0"),
   fridayTotal: z.string().default("0"),
   fridayReview: z.string().default(""),
+  fridayNightOut: z.string().default("false"),
+  fridayExpenseAmount: z.string().default(""),
+  fridayExpenseReceipt: z.string().default(""),
+  fridayDriverRating: z.number().optional(),
+  fridayDriverComments: z.string().optional(),
   
   // Saturday
   saturdayClient: z.string().default(""),
@@ -447,6 +472,11 @@ export const insertTimesheetSchema = createInsertSchema(timesheets).omit({
   saturdayOtherWork: z.string().default("0"),
   saturdayTotal: z.string().default("0"),
   saturdayReview: z.string().default(""),
+  saturdayNightOut: z.string().default("false"),
+  saturdayExpenseAmount: z.string().default(""),
+  saturdayExpenseReceipt: z.string().default(""),
+  saturdayDriverRating: z.number().optional(),
+  saturdayDriverComments: z.string().optional(),
   
   // Sunday
   sundayClient: z.string().default(""),
@@ -457,6 +487,11 @@ export const insertTimesheetSchema = createInsertSchema(timesheets).omit({
   sundayOtherWork: z.string().default("0"),
   sundayTotal: z.string().default("0"),
   sundayReview: z.string().default(""),
+  sundayNightOut: z.string().default("false"),
+  sundayExpenseAmount: z.string().default(""),
+  sundayExpenseReceipt: z.string().default(""),
+  sundayDriverRating: z.number().optional(),
+  sundayDriverComments: z.string().optional(),
 });
 
 export type InsertTimesheet = z.infer<typeof insertTimesheetSchema>;
