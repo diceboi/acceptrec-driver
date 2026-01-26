@@ -340,7 +340,9 @@ export const insertTimesheetSchema = createInsertSchema(timesheets).omit({
   driverRating: true,
   deletedAt: true,
   deletedBy: true,
-  // Omit snake_case fields that we are replacing with camelCase
+  createdByClient: true,
+  billableHoursByDay: true,
+  // Omit fields that we are replacing or not using
   driverName: true,
   weekStartDate: true,
   approvalStatus: true,

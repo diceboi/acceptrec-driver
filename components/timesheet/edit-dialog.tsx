@@ -212,7 +212,7 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
   };
 
   const form = useForm<InsertTimesheet>({
-    resolver: zodResolver(insertTimesheetSchema),
+    resolver: zodResolver(insertTimesheetSchema) as any,
     defaultValues: getDefaultValues(),
   });
 
