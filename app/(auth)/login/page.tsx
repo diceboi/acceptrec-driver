@@ -1,8 +1,8 @@
 'use client';
 
-import { signIn } from 'next-auth/react';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,7 +11,9 @@ import Image from 'next/image';
 
 export default function LoginPage() {
     const router = useRouter();
+    const supabase = createClient();
     const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
@@ -20,23 +22,17 @@ export default function LoginPage() {
         setLoading(true);
         setError('');
 
-        try {
-            const result = await signIn('credentials', {
-                email,
-                password: 'placeholder', // In original app, Replit Auth handles this
-                redirect: false,
-            });
+        const { error } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+        });
 
-            if (result?.error) {
-                setError('Authentication failed');
-                setLoading(false);
-            } else {
-                router.push('/dashboard');
-                router.refresh();
-            }
-        } catch (err) {
-            setError('An error occurred');
+        if (error) {
+            setError(error.message);
             setLoading(false);
+        } else {
+            router.push('/dashboard');
+            router.refresh();
         }
     };
 
@@ -72,15 +68,24 @@ export default function LoginPage() {
                                 disabled={loading}
                             />
                         </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="password">Password</Label>
+                            <Input
+                                id="password"
+                                type="password"
+                                placeholder="Enter your password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                required
+                                disabled={loading}
+                            />
+                        </div>
                         {error && (
                             <div className="text-sm text-destructive">{error}</div>
                         )}
                         <Button type="submit" className="w-full" disabled={loading}>
                             {loading ? 'Signing in...' : 'Sign In'}
                         </Button>
-                        <p className="text-xs text-center text-muted-foreground mt-4">
-                            Note: This is a demo login. Enter your email to continue.
-                        </p>
                     </form>
                 </CardContent>
             </Card>

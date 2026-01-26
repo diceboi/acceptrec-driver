@@ -1,4 +1,5 @@
-@import 'tailwindcss';
+@import "tailwindcss";
+@config "../tailwind.config.ts";
 
 /* LIGHT MODE */
 :root {
@@ -17,19 +18,23 @@
 
   --foreground: 0 0% 9%;
 
-  --border: 0 0% 89%;
+  --border: 0 0% 93%;
 
-  --card: 0 0% 98%;
+  --card: 0 0% 100%;
 
   --card-foreground: 0 0% 9%;
 
-  --card-border: 0 0% 92%;
+  --card-border: 0 0% 93%;
 
-  --sidebar: 0 0% 96%;
+  --sidebar: 0 0% 98%;
 
   --sidebar-foreground: 0 0% 9%;
 
-  --sidebar-border: 0 0% 90%;
+  --sidebar-border: 0 0% 93%;
+
+  /* ... skipping unchanged ... */
+
+  --input: 0 0% 89%;
 
   --sidebar-primary: 240 100% 25%;
 
@@ -334,5 +339,13 @@
   .border.active-elevate-2:not(.no-active-interaction-elevate)::after,
   .border.hover-elevate:not(.no-hover-interaction-elevate)::after {
     inset: -1px;
+  }
+}
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
   }
 }

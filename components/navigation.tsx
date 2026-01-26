@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useSession, signOut } from 'next-auth/react';
+import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -15,20 +16,29 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { LayoutDashboard, FileText, LogOut, CheckSquare, DollarSign, Building2, Star, MessageSquare, CalendarDays, MessageCircle, Shield, Trash2, Users, ChevronDown } from 'lucide-react';
 import Image from 'next/image';
+import type { User } from '@supabase/supabase-js';
+
+import { useAuth } from '@/hooks/use-auth';
 
 export default function Navigation() {
     const pathname = usePathname();
-    const { data: session } = useSession();
+    const router = useRouter();
+    const supabase = createClient();
+    const { user, role } = useAuth();
+    // Removed local userRole state as it is now provided by useAuth
 
-    const user = session?.user;
-    const role = user?.role || 'driver';
+    const handleLogout = async () => {
+        await supabase.auth.signOut();
+        router.push('/login');
+    };
 
     const isAdmin = role === 'admin' || role === 'super_admin';
     const isClient = role === 'client';
 
     const getInitials = () => {
-        if (user?.firstName && user?.lastName) {
-            return `${user.firstName[0]}${user.lastName[0]}`.toUpperCase();
+        if (user?.user_metadata?.full_name) {
+            const names = user.user_metadata.full_name.split(' ');
+            return names.map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
         }
         if (user?.email) {
             return user.email.slice(0, 2).toUpperCase();
@@ -37,20 +47,13 @@ export default function Navigation() {
     };
 
     const getDisplayName = () => {
-        if (user?.firstName && user?.lastName) {
-            return `${user.firstName} ${user.lastName}`;
-        }
-        if (user?.name) {
-            return user.name;
+        if (user?.user_metadata?.full_name) {
+            return user.user_metadata.full_name;
         }
         if (user?.email) {
             return user.email.split('@')[0];
         }
         return 'User';
-    };
-
-    const handleLogout = () => {
-        signOut({ callbackUrl: '/login' });
     };
 
     return (
@@ -224,8 +227,8 @@ export default function Navigation() {
                         <DropdownMenuTrigger asChild>
                             <Button variant="ghost" className="gap-2">
                                 <Avatar className="w-8 h-8">
-                                    {user?.image && (
-                                        <AvatarImage src={user.image} alt={getDisplayName()} />
+                                    {user?.user_metadata?.avatar_url && (
+                                        <AvatarImage src={user.user_metadata.avatar_url} alt={getDisplayName()} />
                                     )}
                                     <AvatarFallback>{getInitials()}</AvatarFallback>
                                 </Avatar>

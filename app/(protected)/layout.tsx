@@ -1,5 +1,3 @@
-import { redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
 import Navigation from '@/components/navigation';
 
 export default async function ProtectedLayout({
@@ -7,12 +5,8 @@ export default async function ProtectedLayout({
 }: {
     children: React.ReactNode;
 }) {
-    const session = await auth();
-
-    if (!session?.user) {
-        redirect('/login');
-    }
-
+    // Auth check is handled by middleware.ts
+    
     return (
         <div className="min-h-screen bg-background">
             <Navigation />

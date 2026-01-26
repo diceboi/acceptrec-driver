@@ -1,24 +1,38 @@
 'use client';
 
-import { SessionProvider } from 'next-auth/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
+import { ThemeProvider } from 'next-themes';
 
 export function Providers({ children }: { children: React.ReactNode }) {
     const [queryClient] = useState(() => new QueryClient({
         defaultOptions: {
             queries: {
-                staleTime: 60 * 1000, // 1 minute
+                queryFn: async ({ queryKey }) => {
+                    const url = queryKey[0] as string;
+                    const res = await fetch(url);
+                    if (!res.ok) {
+                        const errorText = await res.text();
+                        throw new Error(errorText || `${res.status} ${res.statusText}`);
+                    }
+                    return res.json();
+                },
+                refetchInterval: false,
                 refetchOnWindowFocus: false,
             },
         },
     }));
 
     return (
-        <SessionProvider>
-            <QueryClientProvider client={queryClient}>
+        <QueryClientProvider client={queryClient}>
+            <ThemeProvider
+                attribute="class"
+                defaultTheme="light"
+                enableSystem={false}
+                disableTransitionOnChange
+            >
                 {children}
-            </QueryClientProvider>
-        </SessionProvider>
+            </ThemeProvider>
+        </QueryClientProvider>
     );
 }
