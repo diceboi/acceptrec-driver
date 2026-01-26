@@ -91,7 +91,6 @@ export async function POST(req: Request) {
     const [dbUser] = await db.insert(users).values({
         id: authUser.user.id,
         email: data.email,
-        username: data.email, // using email as username
         firstName: data.firstName,
         lastName: data.lastName,
         role: data.role,
