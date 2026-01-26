@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getBucket } from '@/lib/storage';
 import { createClient } from '@/lib/supabase/server';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -13,7 +13,7 @@ export async function POST(req: Request) {
 
   try {
     const bucket = getBucket();
-    const filename = `uploads/${uuidv4()}`;
+    const filename = `uploads/${randomUUID()}`;
     const file = bucket.file(filename);
 
     const [url] = await file.getSignedUrl({
