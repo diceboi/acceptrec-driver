@@ -68,7 +68,7 @@ interface ClientContact {
 }
 
 export default function ClientManagement() {
-  const { user, actualRole } = useAuth(); // Assuming updated useAuth hook supports actualRole or we use role
+  const { user, role } = useAuth();
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
@@ -97,7 +97,7 @@ export default function ClientManagement() {
     },
   });
 
-  const contactForm = useForm<InsertClientContact>({
+  const contactForm = useForm<Omit<InsertClientContact, 'clientId'>>({
     resolver: zodResolver(insertClientContactSchema.omit({ clientId: true })),
     defaultValues: {
       name: "",
@@ -285,8 +285,7 @@ export default function ClientManagement() {
       return <div className="p-8 text-center">Loading access rights...</div>;
   }
   
-  // Basic access check (assuming metadata role is available on user object)
-  const role = user.user_metadata?.role;
+  // Use role from useAuth hook instead of redeclaring
   if (role !== "admin" && role !== "super_admin") {
       return (
       <div className="container mx-auto p-6 max-w-6xl">
