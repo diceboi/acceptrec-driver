@@ -223,7 +223,7 @@ export default function TimesheetTable({ timesheets, isLoading = false }: Timesh
                           </TooltipContent>
                         </Tooltip>
                       )}
-                      {timesheet.clientModifications && Object.keys(timesheet.clientModifications as Record<string, unknown>).length > 0 && (
+                      {!!timesheet.clientModifications && Object.keys(timesheet.clientModifications as Record<string, unknown>).length > 0 && (
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Badge variant="outline" className="gap-1 border-amber-500 text-amber-600">
