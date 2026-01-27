@@ -279,7 +279,7 @@ export default function TimesheetForm() {
     };
   
     const form = useForm<InsertTimesheet>({
-      resolver: zodResolver(insertTimesheetSchema),
+      resolver: zodResolver(insertTimesheetSchema) as any,
       defaultValues: getDefaultValues(),
     });
   
