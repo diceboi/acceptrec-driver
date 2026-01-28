@@ -29,7 +29,7 @@ export default function Navigation() {
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
-        router.push('/login');
+        router.push('/');
     };
 
     const isAdmin = role === 'admin' || role === 'super_admin';
