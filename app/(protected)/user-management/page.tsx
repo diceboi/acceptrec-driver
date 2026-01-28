@@ -84,6 +84,11 @@ export default function UserManagementPage() {
     clientId: "",
     phone: ""
   });
+  
+  // State for Password Dialog
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [changingPassword, setChangingPassword] = useState<{ userId: string; name: string } | null>(null);
+  const [newPassword, setNewPassword] = useState("");
 
   const { data: users, isLoading } = useQuery<User[]>({
     queryKey: ["/api/users"],
@@ -145,6 +150,21 @@ export default function UserManagementPage() {
     },
   });
 
+  const changePasswordMutation = useMutation({
+    mutationFn: async ({ userId, password }: { userId: string; password: string }) => {
+      return await apiRequest("PATCH", `/api/users/${userId}`, { password });
+    },
+    onSuccess: () => {
+      toast.success("Password updated successfully");
+      setPasswordDialogOpen(false);
+      setNewPassword("");
+      setChangingPassword(null);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to update password");
+    },
+  });
+
   const handleRoleChange = (userId: string, newRole: string) => {
     updateUserMutation.mutate({ userId, data: { role: newRole } });
   };
@@ -157,6 +177,23 @@ export default function UserManagementPage() {
   const handleDeleteUser = (userId: string, userName: string) => {
     if (confirm(`Are you sure you want to permanently delete ${userName}? This action cannot be undone.`)) {
       deleteUserMutation.mutate(userId);
+    }
+  };
+
+  const handleChangePasswordClick = (userId: string, name: string) => {
+    setChangingPassword({ userId, name });
+    setNewPassword("");
+    setPasswordDialogOpen(true);
+  };
+
+  const handlePasswordSave = () => {
+    if (changingPassword && newPassword.length >= 8) {
+      changePasswordMutation.mutate({
+        userId: changingPassword.userId,
+        password: newPassword
+      });
+    } else {
+        toast.error("Password must be at least 8 characters");
     }
   };
 
@@ -545,6 +582,26 @@ export default function UserManagementPage() {
                           </Select>
                         )}
                         
+                        {/* Change Password Button */}
+                        {canModifyUser(user) && (
+                            <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => handleChangePasswordClick(user.id, `${user.firstName} ${user.lastName}`)}
+                                disabled={changePasswordMutation.isPending}
+                                className="text-muted-foreground hover:text-primary"
+                                >
+                                <Lock className="w-4 h-4" />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>Change Password</p>
+                            </TooltipContent>
+                            </Tooltip>
+                        )}
+
                         {/* Delete button - only for super admins/admins deleting regular users */}
                         {canModifyUser(user) && (
                           <Button
@@ -574,6 +631,48 @@ export default function UserManagementPage() {
           </CardContent>
         </Card>
       )}
+
+
+
+      <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change Password</DialogTitle>
+            <DialogDescription>
+              Set a new password for {changingPassword?.name}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="space-y-2">
+                <Label>New Password</Label>
+                <div className="relative">
+                    <Lock className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                    type="password"
+                    placeholder="Min 8 characters"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="pl-9"
+                    />
+                </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setPasswordDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handlePasswordSave}
+              disabled={changePasswordMutation.isPending || newPassword.length < 8}
+            >
+              {changePasswordMutation.isPending ? "Saving..." : "Set Password"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={phoneDialogOpen} onOpenChange={setPhoneDialogOpen}>
         <DialogContent data-testid="dialog-edit-phone">

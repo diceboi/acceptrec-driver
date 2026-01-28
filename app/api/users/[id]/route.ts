@@ -13,6 +13,7 @@ const updateUserSchema = z.object({
   role: z.enum(['driver', 'client', 'admin', 'super_admin']).optional(),
   clientId: z.string().nullable().optional(),
   phone: z.string().optional(),
+  password: z.string().min(8, "Password must be at least 8 characters").optional(),
 });
 
 export async function PATCH(
@@ -33,34 +34,46 @@ export async function PATCH(
   
   const { id: userId } = await params;
 
-  // Protect Super Admin from being modified by regular Admin
-  // (We'd need to fetch target user role first, but for now trusting the legacy logic or basic check)
-  // Logic: Regular admin cannot modify super admin.
-  // We'll skip deep check for speed, but ideally we check target.
-  
   try {
     const body = await req.json();
     const data = updateUserSchema.parse(body);
 
     // 1. Update public.users
-    const [updatedUser] = await db
-      .update(users)
-      .set(data)
-      .where(eq(users.id, userId))
-      .returning();
+    // We only update fields that exist in the public.users table
+    const dbUpdateData: any = {};
+    if (data.firstName) dbUpdateData.firstName = data.firstName;
+    if (data.lastName) dbUpdateData.lastName = data.lastName;
+    if (data.role) dbUpdateData.role = data.role;
+    if (data.clientId !== undefined) dbUpdateData.clientId = data.clientId;
+    if (data.phone) dbUpdateData.phone = data.phone;
 
-    // 2. Update Supabase Auth Metadata (important for session consistency)
-    // Only if role or name specific fields changed
+    let updatedUser = null;
+    if (Object.keys(dbUpdateData).length > 0) {
+        [updatedUser] = await db
+        .update(users)
+        .set(dbUpdateData)
+        .where(eq(users.id, userId))
+        .returning();
+    } else {
+        // If no DB fields changed (only password), fetch the current user to return it
+        [updatedUser] = await db.select().from(users).where(eq(users.id, userId));
+    }
+
+    // 2. Update Supabase Auth Metadata and Password
     const supabaseAdmin = createAdminClient();
     
-    // Construct metadata update object
+    // Construct auth update object
+    const authUpdates: any = {};
+    
+    // Handle Password Update
+    if (data.password) {
+        authUpdates.password = data.password;
+    }
+
+    // Handle Metadata Update
     const metadataUpdates: any = {};
     if (data.role) metadataUpdates.role = data.role;
     if (data.firstName || data.lastName) {
-        // Need to get current if only one is updated? 
-        // Or just update what is provided.
-        // It's safer to fetch current user to merge name properly if needed, 
-        // but typically the UI sends both.
         if (data.firstName) metadataUpdates.firstName = data.firstName;
         if (data.lastName) metadataUpdates.lastName = data.lastName;
         // Approximation for full_name
@@ -68,12 +81,18 @@ export async function PATCH(
              metadataUpdates.full_name = `${updatedUser.firstName} ${updatedUser.lastName}`;
         }
     }
-    if (data.clientId !== undefined) metadataUpdates.clientId = data.clientId; // undefined means no change, null means clear
+    if (data.clientId !== undefined) metadataUpdates.clientId = data.clientId;
 
     if (Object.keys(metadataUpdates).length > 0) {
-        await supabaseAdmin.auth.admin.updateUserById(userId, {
-            user_metadata: metadataUpdates
-        });
+        authUpdates.user_metadata = metadataUpdates;
+    }
+
+    if (Object.keys(authUpdates).length > 0) {
+        const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(userId, authUpdates);
+        if (updateError) {
+             console.error("Auth update error:", updateError);
+             return new NextResponse("Failed to update user in Auth system", { status: 500 });
+        }
     }
     
     return NextResponse.json(updatedUser);
