@@ -1,12 +1,14 @@
 import Navigation from '@/components/navigation';
 
+export const dynamic = 'force-dynamic';
+
 export default async function ProtectedLayout({
     children,
 }: {
     children: React.ReactNode;
 }) {
     // Auth check is handled by middleware.ts
-    
+
     return (
         <div className="min-h-screen bg-background">
             <Navigation />
