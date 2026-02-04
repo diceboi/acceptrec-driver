@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { TimeSelect } from "@/components/ui/time-select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -47,6 +48,7 @@ type DayFields = {
   poaField: keyof InsertTimesheet;
   otherWorkField: keyof InsertTimesheet;
   totalField: keyof InsertTimesheet;
+  nightOutField: keyof InsertTimesheet;
   reviewField: keyof InsertTimesheet;
 };
 
@@ -102,6 +104,7 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
         poaField: "sundayPoa",
         otherWorkField: "sundayOtherWork",
         totalField: "sundayTotal",
+        nightOutField: "sundayNightOut",
         reviewField: "sundayReview",
       },
     },
@@ -116,6 +119,7 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
         poaField: "mondayPoa",
         otherWorkField: "mondayOtherWork",
         totalField: "mondayTotal",
+        nightOutField: "mondayNightOut",
         reviewField: "mondayReview",
       },
     },
@@ -130,6 +134,7 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
         poaField: "tuesdayPoa",
         otherWorkField: "tuesdayOtherWork",
         totalField: "tuesdayTotal",
+        nightOutField: "tuesdayNightOut",
         reviewField: "tuesdayReview",
       },
     },
@@ -144,6 +149,7 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
         poaField: "wednesdayPoa",
         otherWorkField: "wednesdayOtherWork",
         totalField: "wednesdayTotal",
+        nightOutField: "wednesdayNightOut",
         reviewField: "wednesdayReview",
       },
     },
@@ -158,6 +164,7 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
         poaField: "thursdayPoa",
         otherWorkField: "thursdayOtherWork",
         totalField: "thursdayTotal",
+        nightOutField: "thursdayNightOut",
         reviewField: "thursdayReview",
       },
     },
@@ -172,6 +179,7 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
         poaField: "fridayPoa",
         otherWorkField: "fridayOtherWork",
         totalField: "fridayTotal",
+        nightOutField: "fridayNightOut",
         reviewField: "fridayReview",
       },
     },
@@ -186,6 +194,7 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
         poaField: "saturdayPoa",
         otherWorkField: "saturdayOtherWork",
         totalField: "saturdayTotal",
+        nightOutField: "saturdayNightOut",
         reviewField: "saturdayReview",
       },
     },
@@ -205,6 +214,7 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
       defaults[day.fields.poaField] = timesheet[day.fields.poaField as keyof Timesheet] || "0";
       defaults[day.fields.otherWorkField] = timesheet[day.fields.otherWorkField as keyof Timesheet] || "0";
       defaults[day.fields.totalField] = timesheet[day.fields.totalField as keyof Timesheet] || "0";
+      defaults[day.fields.nightOutField] = timesheet[day.fields.nightOutField as keyof Timesheet] || "false";
       defaults[day.fields.reviewField] = timesheet[day.fields.reviewField as keyof Timesheet] || "";
     });
 
@@ -495,6 +505,30 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
                           )}
                         />
                       </div>
+
+                      <FormField
+                        control={form.control}
+                        name={day.fields.nightOutField as any}
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-3">
+                            <FormControl>
+                              <Checkbox
+                                checked={field.value === "true"}
+                                onCheckedChange={(checked) => field.onChange(checked ? "true" : "false")}
+                                data-testid={`checkbox-edit-${day.name.toLowerCase()}-nightout`}
+                              />
+                            </FormControl>
+                            <div className="space-y-1 leading-none">
+                              <FormLabel className="text-xs cursor-pointer">
+                                Night Out 🌙
+                              </FormLabel>
+                              <p className="text-xs text-muted-foreground">
+                                Check if driver stayed out overnight for this shift
+                              </p>
+                            </div>
+                          </FormItem>
+                        )}
+                      />
 
                       <FormField
                         control={form.control}

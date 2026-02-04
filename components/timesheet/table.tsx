@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Timesheet } from "@/shared/schema";
 import { format, parseISO } from "date-fns";
-import { Pencil, Trash2, Clock, ArrowUpDown, CheckCircle, XCircle, Lock, PenLine } from "lucide-react";
+import { Pencil, Trash2, Clock, ArrowUpDown, CheckCircle, XCircle, Lock, PenLine, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import {
@@ -64,6 +64,20 @@ export default function TimesheetTable({ timesheets, isLoading = false }: Timesh
       timesheet.sundayClient,
     ].filter(client => client && client.trim() !== "");
     return Array.from(new Set(clients));
+  };
+
+  // Count night outs for a timesheet
+  const getNightOutCount = (timesheet: Timesheet): number => {
+    const nightOuts = [
+      timesheet.mondayNightOut,
+      timesheet.tuesdayNightOut,
+      timesheet.wednesdayNightOut,
+      timesheet.thursdayNightOut,
+      timesheet.fridayNightOut,
+      timesheet.saturdayNightOut,
+      timesheet.sundayNightOut,
+    ].filter(nightOut => nightOut === "true");
+    return nightOuts.length;
   };
 
   const handleSort = (field: SortField) => {
@@ -162,6 +176,7 @@ export default function TimesheetTable({ timesheets, isLoading = false }: Timesh
             {sortedTimesheets.map((timesheet, index) => {
               const clients = getClients(timesheet);
               const totalHours = getTotalHours(timesheet);
+              const nightOutCount = getNightOutCount(timesheet);
               
               return (
                 <TableRow
@@ -187,9 +202,17 @@ export default function TimesheetTable({ timesheets, isLoading = false }: Timesh
                     </div>
                   </TableCell>
                   <TableCell>
-                    <span className="font-semibold text-primary tabular-nums">
-                      {totalHours.toFixed(2)}h
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-primary tabular-nums">
+                        {totalHours.toFixed(2)}h
+                      </span>
+                      {nightOutCount > 0 && (
+                        <Badge variant="outline" className="gap-1 text-xs border-blue-500 text-blue-600">
+                          <Moon className="w-3 h-3" />
+                          {nightOutCount}
+                        </Badge>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="hidden lg:table-cell">
                     <div className="flex items-center gap-2">
