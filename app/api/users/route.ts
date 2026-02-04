@@ -1,10 +1,10 @@
 
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { users } from '@/shared/schema';
+import { users, clientContacts, insertClientContactSchema } from '@/shared/schema';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, and } from 'drizzle-orm';
 import { z } from 'zod';
 
 const createUserSchema = z.object({
@@ -106,6 +106,39 @@ export async function POST(req: Request) {
              phone: data.phone,
         }
     }).returning();
+
+    // 3. Automatically create a contact if the user is a client with a company assigned
+    if (data.role === 'client' && data.clientId) {
+      try {
+        // Check if contact already exists with this email for this client
+        const existingContact = await db.select()
+          .from(clientContacts)
+          .where(
+            and(
+              eq(clientContacts.clientId, data.clientId),
+              eq(clientContacts.email, data.email)
+            )
+          )
+          .limit(1);
+
+        // Only create contact if it doesn't exist yet
+        if (existingContact.length === 0) {
+          await db.insert(clientContacts).values({
+            clientId: data.clientId,
+            name: `${data.firstName} ${data.lastName}`,
+            email: data.email,
+            phone: data.phone || null,
+            isPrimary: 0, // Not primary by default
+          });
+          console.log(`Auto-created contact for client user: ${data.email}`);
+        } else {
+          console.log(`Contact already exists for ${data.email} at client ${data.clientId}`);
+        }
+      } catch (contactError) {
+        // Log the error but don't fail the user creation
+        console.error('Error creating contact for client user:', contactError);
+      }
+    }
 
     return NextResponse.json(dbUser);
 

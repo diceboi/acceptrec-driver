@@ -1,10 +1,10 @@
 
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { users } from '@/shared/schema';
+import { users, clientContacts } from '@/shared/schema';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 
 const updateUserSchema = z.object({
@@ -93,6 +93,48 @@ export async function PATCH(
              console.error("Auth update error:", updateError);
              return new NextResponse("Failed to update user in Auth system", { status: 500 });
         }
+    }
+    
+    // 3. Automatically create a contact if the user is/becomes a client with a company assigned
+    // This handles both cases:
+    // - Role changes to 'client' and user already has a clientId
+    // - ClientId is assigned and user is already a 'client'
+    if (updatedUser) {
+      const finalRole = updatedUser.role;
+      const finalClientId = updatedUser.clientId;
+
+      // Check if this user should have a contact (is client with company)
+      if (finalRole === 'client' && finalClientId) {
+        try {
+          // Check if contact already exists with this email for this client
+          const existingContact = await db.select()
+            .from(clientContacts)
+            .where(
+              and(
+                eq(clientContacts.clientId, finalClientId),
+                eq(clientContacts.email, updatedUser.email)
+              )
+            )
+            .limit(1);
+
+          // Only create contact if it doesn't exist yet
+          if (existingContact.length === 0) {
+            await db.insert(clientContacts).values({
+              clientId: finalClientId,
+              name: `${updatedUser.firstName} ${updatedUser.lastName}`,
+              email: updatedUser.email,
+              phone: updatedUser.phone || null,
+              isPrimary: 0, // Not primary by default
+            });
+            console.log(`Auto-created contact for client user: ${updatedUser.email}`);
+          } else {
+            console.log(`Contact already exists for ${updatedUser.email} at client ${finalClientId}`);
+          }
+        } catch (contactError) {
+          // Log the error but don't fail the user update
+          console.error('Error creating contact for client user:', contactError);
+        }
+      }
     }
     
     return NextResponse.json(updatedUser);
