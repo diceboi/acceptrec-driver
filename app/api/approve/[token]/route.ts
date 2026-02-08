@@ -1,7 +1,7 @@
 
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { approvalBatches, batchTimesheets, timesheets } from '@/shared/schema';
+import { approvalBatches, batchTimesheets, timesheets, clients } from '@/shared/schema';
 import { eq, and } from 'drizzle-orm';
 
 export async function GET(
@@ -27,10 +27,23 @@ export async function GET(
 
     // Check expiry if you want strict security, though legacy code might not check it strictly
     if (new Date() > batch.approvalTokenExpiry) {
-        return new NextResponse("Approval token expired", { status: 410 });
+      return new NextResponse("Approval token expired", { status: 410 });
     }
 
-    // 2. Fetch linked timesheets
+    // 2. Fetch the client to get minimum billable hours
+    let clientMinimumHours = 8; // Default
+    if (batch.clientId) {
+      const [clientRecord] = await db
+        .select()
+        .from(clients)
+        .where(eq(clients.id, batch.clientId));
+
+      if (clientRecord) {
+        clientMinimumHours = clientRecord.minimumBillableHours;
+      }
+    }
+
+    // 3. Fetch linked timesheets
     // Perform a join to get relevant timesheets
     const batchData = await db
       .select({
@@ -43,7 +56,10 @@ export async function GET(
     const timesheetList = batchData.map(d => d.timesheet);
 
     return NextResponse.json({
-      batch,
+      batch: {
+        ...batch,
+        minimumBillableHours: clientMinimumHours
+      },
       timesheets: timesheetList
     });
 

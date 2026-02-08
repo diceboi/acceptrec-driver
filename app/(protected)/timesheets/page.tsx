@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Timesheet } from "@/shared/schema";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Clock, Plus, List } from "lucide-react";
+import { Clock, Plus, List, CheckCircle, XCircle } from "lucide-react";
 
 export default function TimesheetsPage() {
   const { data: timesheets = [], isLoading } = useQuery<Timesheet[]>({
@@ -60,6 +60,32 @@ export default function TimesheetsPage() {
                 </div>
               </CardContent>
             </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Approved
+                </CardTitle>
+                <CheckCircle className="h-4 w-4 text-green-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {timesheets.filter(t => t.approvalStatus === 'approved').length}
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Rejected
+                </CardTitle>
+                <XCircle className="h-4 w-4 text-destructive" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {timesheets.filter(t => t.approvalStatus === 'rejected').length}
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           <Card>
@@ -70,7 +96,7 @@ export default function TimesheetsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-               <TimesheetTable timesheets={timesheets} isLoading={isLoading} />
+              <TimesheetTable timesheets={timesheets} isLoading={isLoading} />
             </CardContent>
           </Card>
         </TabsContent>

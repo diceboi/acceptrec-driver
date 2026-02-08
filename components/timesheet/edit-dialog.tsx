@@ -61,27 +61,27 @@ const calculateHours = (startTime: string, endTime: string, breakTime: string): 
   try {
     const [startHour, startMin] = startTime.split(':').map(Number);
     const [endHour, endMin] = endTime.split(':').map(Number);
-    
+
     const startMinutes = startHour * 60 + startMin;
     let endMinutes = endHour * 60 + endMin;
-    
+
     // Handle overnight shifts - if end time is before start time, add 24 hours
     if (endMinutes <= startMinutes) {
       endMinutes += 24 * 60; // Add 1440 minutes (24 hours)
     }
-    
+
     // Break is now in minutes (plain number)
     let breakMinutes = 0;
     if (breakTime) {
       breakMinutes = parseFloat(breakTime) || 0;
     }
-    
+
     const workedMinutes = endMinutes - startMinutes - breakMinutes;
-    
+
     if (workedMinutes < 0) {
       return "0";
     }
-    
+
     return (workedMinutes / 60).toFixed(2);
   } catch (error) {
     return "0";
@@ -326,9 +326,21 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
           <Alert variant="destructive" className="mt-4" data-testid="alert-edit-approved">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
-              <strong>Warning:</strong> This timesheet has been approved by a client. 
-              Editing it will remove the client's approval, rating, comments, and any time corrections they made. 
+              <strong>Warning:</strong> This timesheet has been approved by a client.
+              Editing it will remove the client's approval, rating, comments, and any time corrections they made.
               The timesheet will need to be re-submitted for approval.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {timesheet.approvalStatus === 'rejected' && timesheet.clientComments && (
+          <Alert variant="destructive" className="mt-4" data-testid="alert-edit-rejected">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              <strong>Rejected by {timesheet.clientApprovedBy || 'client'}:</strong>
+              <div className="mt-2 text-sm">
+                {timesheet.clientComments}
+              </div>
             </AlertDescription>
           </Alert>
         )}

@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { TimeSelect } from "@/components/ui/time-select";
 import { toast } from "sonner";
 import { CheckCircle, XCircle, Clock, AlertCircle, Plus, Building2 } from "lucide-react";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, addDays } from "date-fns";
 import { useState } from "react";
 import { apiRequest } from "@/lib/queryClient";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +39,7 @@ interface ApprovalBatch {
   weekStartDate: string;
   approvalToken: string;
   status: string;
+  minimumBillableHours?: number;
 }
 
 interface Timesheet {
@@ -140,9 +141,9 @@ export default function ApproveTimesheet() {
   const { data, isLoading, error } = useQuery<BatchData>({
     queryKey: [`/api/approve/${token}`],
     queryFn: async () => {
-        const res = await fetch(`/api/approve/${token}`);
-        if (!res.ok) throw new Error("Failed to load");
-        return res.json();
+      const res = await fetch(`/api/approve/${token}`);
+      if (!res.ok) throw new Error("Failed to load");
+      return res.json();
     },
     enabled: !!token,
     retry: false,
@@ -182,7 +183,7 @@ export default function ApproveTimesheet() {
       <div className="max-w-6xl mx-auto py-8">
         <div className="text-center mb-8">
           <div className="inline-block p-3 rounded-full bg-primary/10 mb-4">
-             <Building2 className="w-8 h-8 text-primary" />
+            <Building2 className="w-8 h-8 text-primary" />
           </div>
           <h1 className="text-3xl font-bold text-foreground mb-2" data-testid="heading-batch-approval">
             Driver Timesheet Approval
@@ -211,12 +212,13 @@ export default function ApproveTimesheet() {
               timesheet={timesheet}
               token={token!}
               batchClientName={data.batch.clientName}
+              batchData={data.batch}
             />
           ))}
         </div>
-        
+
         <div className="mt-12 text-center text-sm text-muted-foreground">
-             <p>Accept Recruitment &copy; {new Date().getFullYear()}</p>
+          <p>Accept Recruitment &copy; {new Date().getFullYear()}</p>
         </div>
       </div>
     </div>
@@ -228,15 +230,27 @@ interface DriverTimesheetCardProps {
   token: string;
 }
 
-function DriverTimesheetCard({ timesheet, token, batchClientName }: DriverTimesheetCardProps & { batchClientName: string }) {
+function DriverTimesheetCard({ timesheet, token, batchClientName, batchData }: DriverTimesheetCardProps & { batchClientName: string; batchData: ApprovalBatch }) {
   const [approveDialogOpen, setApproveDialogOpen] = useState(false);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
 
   const isCompleted = timesheet.approvalStatus === "approved" || timesheet.approvalStatus === "rejected";
 
+  // Get minimum billable hours from batch data
+  const minimumBillableHours = batchData.minimumBillableHours || 8;
+
+  // Calculate the actual date for each day based on weekStartDate
+  const weekStart = parseISO(batchData.weekStartDate);
+
+  // Helper to get date for a day index (0 = Sunday in our array order)
+  const getDayDate = (dayIndex: number) => {
+    return addDays(weekStart, dayIndex);
+  };
+
   const dayData = [
-    { 
-      name: "Sunday", 
+    {
+      name: "Sunday",
+      date: getDayDate(0),
       client: timesheet.sundayClient,
       start: timesheet.sundayStart,
       end: timesheet.sundayEnd,
@@ -248,8 +262,9 @@ function DriverTimesheetCard({ timesheet, token, batchClientName }: DriverTimesh
       expenseAmount: timesheet.sundayExpenseAmount,
       expenseReceipt: timesheet.sundayExpenseReceipt,
     },
-    { 
-      name: "Monday", 
+    {
+      name: "Monday",
+      date: getDayDate(1),
       client: timesheet.mondayClient,
       start: timesheet.mondayStart,
       end: timesheet.mondayEnd,
@@ -261,8 +276,9 @@ function DriverTimesheetCard({ timesheet, token, batchClientName }: DriverTimesh
       expenseAmount: timesheet.mondayExpenseAmount,
       expenseReceipt: timesheet.mondayExpenseReceipt,
     },
-    { 
-      name: "Tuesday", 
+    {
+      name: "Tuesday",
+      date: getDayDate(2),
       client: timesheet.tuesdayClient,
       start: timesheet.tuesdayStart,
       end: timesheet.tuesdayEnd,
@@ -274,8 +290,9 @@ function DriverTimesheetCard({ timesheet, token, batchClientName }: DriverTimesh
       expenseAmount: timesheet.tuesdayExpenseAmount,
       expenseReceipt: timesheet.tuesdayExpenseReceipt,
     },
-    { 
-      name: "Wednesday", 
+    {
+      name: "Wednesday",
+      date: getDayDate(3),
       client: timesheet.wednesdayClient,
       start: timesheet.wednesdayStart,
       end: timesheet.wednesdayEnd,
@@ -287,8 +304,9 @@ function DriverTimesheetCard({ timesheet, token, batchClientName }: DriverTimesh
       expenseAmount: timesheet.wednesdayExpenseAmount,
       expenseReceipt: timesheet.wednesdayExpenseReceipt,
     },
-    { 
-      name: "Thursday", 
+    {
+      name: "Thursday",
+      date: getDayDate(4),
       client: timesheet.thursdayClient,
       start: timesheet.thursdayStart,
       end: timesheet.thursdayEnd,
@@ -300,8 +318,9 @@ function DriverTimesheetCard({ timesheet, token, batchClientName }: DriverTimesh
       expenseAmount: timesheet.thursdayExpenseAmount,
       expenseReceipt: timesheet.thursdayExpenseReceipt,
     },
-    { 
-      name: "Friday", 
+    {
+      name: "Friday",
+      date: getDayDate(5),
       client: timesheet.fridayClient,
       start: timesheet.fridayStart,
       end: timesheet.fridayEnd,
@@ -313,8 +332,9 @@ function DriverTimesheetCard({ timesheet, token, batchClientName }: DriverTimesh
       expenseAmount: timesheet.fridayExpenseAmount,
       expenseReceipt: timesheet.fridayExpenseReceipt,
     },
-    { 
-      name: "Saturday", 
+    {
+      name: "Saturday",
+      date: getDayDate(6),
       client: timesheet.saturdayClient,
       start: timesheet.saturdayStart,
       end: timesheet.saturdayEnd,
@@ -328,15 +348,19 @@ function DriverTimesheetCard({ timesheet, token, batchClientName }: DriverTimesh
     },
   ];
 
-  const workedDays = dayData.filter(day => 
-    day.client && 
-    day.client.trim() !== "" 
+  const workedDays = dayData.filter(day =>
+    day.client &&
+    day.client.trim() !== ""
     // Relaxed check: include days even if client name doesn't perfectly match (legacy logic was strict)
     // day.client.trim().toLowerCase() === batchClientName.trim().toLowerCase()
   );
-  
+
   const getTotalHours = () => {
-    return workedDays.reduce((sum, day) => sum + parseFloat(day.total || "0"), 0);
+    return workedDays.reduce((sum, day) => {
+      const actualHours = parseFloat(day.total || "0");
+      const billableHours = Math.max(actualHours, minimumBillableHours);
+      return sum + billableHours;
+    }, 0);
   };
 
   // Calculate discrepancies
@@ -362,8 +386,8 @@ function DriverTimesheetCard({ timesheet, token, batchClientName }: DriverTimesh
             <CardTitle className="text-xl flex items-center gap-2">
               {timesheet.driverName}
               {discrepancyCount > 0 && (
-                <Badge 
-                  variant="destructive" 
+                <Badge
+                  variant="destructive"
                   className="gap-1"
                   data-testid={`badge-discrepancies-${timesheet.id}`}
                 >
@@ -403,79 +427,89 @@ function DriverTimesheetCard({ timesheet, token, batchClientName }: DriverTimesh
           <div className="space-y-3">
             {workedDays.map((day) => {
               const dayHours = parseFloat(day.total || "0");
+              const billableHours = Math.max(dayHours, minimumBillableHours);
+              const minimumApplied = billableHours > dayHours;
               const hasDiscrepancy = dayHours > 0 && dayHours < 8;
-              
-              return (
-              <div 
-                key={day.name} 
-                className={`border rounded-md p-4 space-y-2 ${hasDiscrepancy ? 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800' : 'bg-muted/30'}`}
-              >
-                <div className="flex justify-between items-start">
-                  <div className="flex items-center gap-2">
-                    <div>
-                      <p className="font-semibold text-sm">{day.name}</p>
-                      <p className="text-xs text-muted-foreground">{day.client}</p>
-                    </div>
-                    {hasDiscrepancy && (
-                      <Badge variant="destructive" className="text-xs gap-1">
-                        <AlertCircle className="w-3 h-3" />
-                        Under 8h
-                      </Badge>
-                    )}
-                  </div>
-                  <Badge variant="secondary" className="font-semibold">
-                    {dayHours.toFixed(2)}h total
-                  </Badge>
-                </div>
-                
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-xs pt-2 border-t">
-                  <div>
-                    <p className="text-muted-foreground">Start</p>
-                    <p className="font-medium">{day.start || "—"}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">End</p>
-                    <p className="font-medium">{day.end || "—"}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Break</p>
-                    <p className="font-medium">{day.break || "—"}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">POA</p>
-                    <p className="font-medium">{day.poa || "0"}h</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Other</p>
-                    <p className="font-medium">{day.otherWork || "0"}h</p>
-                  </div>
-                </div>
 
-                {(day.nightOut === "true" || (day.expenseAmount && parseFloat(day.expenseAmount) > 0)) && (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs pt-2 border-t">
-                    {day.nightOut === "true" && (
+              return (
+                <div
+                  key={day.name}
+                  className={`border rounded-md p-4 space-y-2 ${hasDiscrepancy ? 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800' : 'bg-muted/30'}`}
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="flex items-center gap-2">
                       <div>
-                        <p className="text-muted-foreground">Night Out</p>
-                        <p className="font-medium text-blue-600">✓ Yes</p>
+                        <p className="font-semibold text-sm">{day.name}</p>
+                        <p className="text-xs text-muted-foreground">{format(day.date, "MMM d")}</p>
+                        <p className="text-xs text-muted-foreground">{day.client}</p>
                       </div>
-                    )}
-                    {day.expenseAmount && parseFloat(day.expenseAmount) > 0 && (
-                      <>
-                        <div>
-                          <p className="text-muted-foreground">Expense Amount</p>
-                          <p className="font-medium">£{parseFloat(day.expenseAmount).toFixed(2)}</p>
-                        </div>
-                        {day.expenseReceipt && (
-                          <div>
-                            <p className="text-muted-foreground">Receipt</p>
-                            <p className="font-medium truncate text-blue-600">{day.expenseReceipt}</p>
-                          </div>
-                        )}
-                      </>
-                    )}
+                      {hasDiscrepancy && (
+                        <Badge variant="destructive" className="text-xs gap-1">
+                          <AlertCircle className="w-3 h-3" />
+                          Under 8h
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <Badge variant="secondary" className="font-semibold">
+                        {billableHours.toFixed(2)}h total
+                      </Badge>
+                      {minimumApplied && (
+                        <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                          Min. applied ({dayHours.toFixed(2)}h → {billableHours.toFixed(2)}h)
+                        </p>
+                      )}
+                    </div>
                   </div>
-                )}
-              </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-xs pt-2 border-t">
+                    <div>
+                      <p className="text-muted-foreground">Start</p>
+                      <p className="font-medium">{day.start || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">End</p>
+                      <p className="font-medium">{day.end || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Break</p>
+                      <p className="font-medium">{day.break || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">POA</p>
+                      <p className="font-medium">{day.poa || "0"}h</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Other</p>
+                      <p className="font-medium">{day.otherWork || "0"}h</p>
+                    </div>
+                  </div>
+
+                  {(day.nightOut === "true" || (day.expenseAmount && parseFloat(day.expenseAmount) > 0)) && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs pt-2 border-t">
+                      {day.nightOut === "true" && (
+                        <div>
+                          <p className="text-muted-foreground">Night Out</p>
+                          <p className="font-medium text-blue-600">✓ Yes</p>
+                        </div>
+                      )}
+                      {day.expenseAmount && parseFloat(day.expenseAmount) > 0 && (
+                        <>
+                          <div>
+                            <p className="text-muted-foreground">Expense Amount</p>
+                            <p className="font-medium">£{parseFloat(day.expenseAmount).toFixed(2)}</p>
+                          </div>
+                          {day.expenseReceipt && (
+                            <div>
+                              <p className="text-muted-foreground">Receipt</p>
+                              <p className="font-medium truncate text-blue-600">{day.expenseReceipt}</p>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>
@@ -581,18 +615,18 @@ function ApproveForm({ timesheetId, token, driverName, timesheet, dayData, onSuc
   const [rating, setRating] = useState("");
   const [comments, setComments] = useState("");
   const [showEditMode, setShowEditMode] = useState(false);
-  
+
   const [editedTimes, setEditedTimes] = useState<Record<string, any>>({});
 
   const approveMutation = useMutation({
     mutationFn: async () => {
       const modifications: Record<string, any> = {};
-      
+
       Object.keys(editedTimes).forEach((field) => {
         const originalField = field.replace('edited_', '');
         const originalValue = (timesheet as any)[originalField];
         const editedValue = editedTimes[field];
-        
+
         if (editedValue !== originalValue && editedValue !== undefined && editedValue !== null && editedValue !== '') {
           modifications[originalField] = {
             original: originalValue || '',

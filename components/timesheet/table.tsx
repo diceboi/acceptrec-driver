@@ -29,7 +29,7 @@ interface TimesheetTableProps {
   isLoading?: boolean;
 }
 
-type SortField = "weekStartDate" | "driverName" | "totalHours";
+type SortField = "weekStartDate" | "driverName" | "totalHours" | "approvalStatus";
 type SortOrder = "asc" | "desc";
 
 export default function TimesheetTable({ timesheets, isLoading = false }: TimesheetTableProps) {
@@ -91,15 +91,17 @@ export default function TimesheetTable({ timesheets, isLoading = false }: Timesh
 
   const sortedTimesheets = [...timesheets].sort((a, b) => {
     let comparison = 0;
-    
+
     if (sortField === "weekStartDate") {
       comparison = new Date(a.weekStartDate).getTime() - new Date(b.weekStartDate).getTime();
     } else if (sortField === "totalHours") {
       comparison = getTotalHours(a) - getTotalHours(b);
     } else if (sortField === "driverName") {
       comparison = a.driverName.localeCompare(b.driverName);
+    } else if (sortField === "approvalStatus") {
+      comparison = (a.approvalStatus || "").localeCompare(b.approvalStatus || "");
     }
-    
+
     return sortOrder === "asc" ? comparison : -comparison;
   });
 
@@ -168,7 +170,18 @@ export default function TimesheetTable({ timesheets, isLoading = false }: Timesh
                   <ArrowUpDown className="ml-2 h-3 w-3" />
                 </Button>
               </TableHead>
-              <TableHead className="hidden lg:table-cell">Status</TableHead>
+              <TableHead className="hidden lg:table-cell">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-2 hover:bg-accent hover:text-accent-foreground"
+                  onClick={() => handleSort("approvalStatus")}
+                  data-testid="button-sort-status"
+                >
+                  Status
+                  <ArrowUpDown className="ml-2 h-3 w-3" />
+                </Button>
+              </TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -177,7 +190,7 @@ export default function TimesheetTable({ timesheets, isLoading = false }: Timesh
               const clients = getClients(timesheet);
               const totalHours = getTotalHours(timesheet);
               const nightOutCount = getNightOutCount(timesheet);
-              
+
               return (
                 <TableRow
                   key={timesheet.id}
@@ -234,31 +247,31 @@ export default function TimesheetTable({ timesheets, isLoading = false }: Timesh
                       ) : (
                         <Badge variant="outline">Draft</Badge>
                       )}
-                      
+
                       <TooltipProvider>
-                      {timesheet.batchId && effectiveRole === 'driver' && (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Lock className="w-4 h-4 text-muted-foreground" />
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Sent to client - contact admin to edit</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      )}
-                      {!!timesheet.clientModifications && Object.keys(timesheet.clientModifications as Record<string, unknown>).length > 0 && (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Badge variant="outline" className="gap-1 border-amber-500 text-amber-600">
-                              <PenLine className="w-3 h-3" />
-                              Edited
-                            </Badge>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Client made edits before approval</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      )}
+                        {timesheet.batchId && effectiveRole === 'driver' && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Lock className="w-4 h-4 text-muted-foreground" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Sent to client - contact admin to edit</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                        {!!timesheet.clientModifications && Object.keys(timesheet.clientModifications as Record<string, unknown>).length > 0 && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Badge variant="outline" className="gap-1 border-amber-500 text-amber-600">
+                                <PenLine className="w-3 h-3" />
+                                Edited
+                              </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Client made edits before approval</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
                       </TooltipProvider>
                     </div>
                   </TableCell>
@@ -266,23 +279,23 @@ export default function TimesheetTable({ timesheets, isLoading = false }: Timesh
                     <div className="flex justify-end gap-2">
                       {timesheet.batchId && effectiveRole === 'driver' ? (
                         <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                disabled={true}
-                                data-testid={`button-edit-${index}`}
-                              >
-                                <Pencil className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>This timesheet has been sent to a client and cannot be edited</p>
-                          </TooltipContent>
-                        </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  disabled={true}
+                                  data-testid={`button-edit-${index}`}
+                                >
+                                  <Pencil className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>This timesheet has been sent to a client and cannot be edited</p>
+                            </TooltipContent>
+                          </Tooltip>
                         </TooltipProvider>
                       ) : (
                         <Button

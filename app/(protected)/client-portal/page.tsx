@@ -17,7 +17,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CheckCircle2, XCircle, Clock, Building2, Calendar, Star, FileText, ChevronRight, AlertTriangle } from "lucide-react";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, addDays } from "date-fns";
 import { useAuth } from "@/hooks/use-auth";
 import { useState } from "react";
 import { apiRequest } from "@/lib/queryClient";
@@ -107,7 +107,7 @@ export default function ClientPortal() {
   const { data: clientInfo, isLoading: isLoadingClient } = useQuery<ClientInfo>({
     queryKey: ["/api/client/company", viewAsClientId],
     queryFn: async () => {
-      const url = viewAsClientId 
+      const url = viewAsClientId
         ? `/api/client/company?impersonateClientId=${viewAsClientId}`
         : '/api/client/company';
       const response = await fetch(url);
@@ -121,7 +121,7 @@ export default function ClientPortal() {
   const { data: batches, isLoading: isLoadingBatches } = useQuery<ApprovalBatch[]>({
     queryKey: ["/api/client/approval-batches", viewAsClientId],
     queryFn: async () => {
-      const url = viewAsClientId 
+      const url = viewAsClientId
         ? `/api/client/approval-batches?impersonateClientId=${viewAsClientId}`
         : '/api/client/approval-batches';
       const response = await fetch(url);
@@ -218,12 +218,14 @@ export default function ClientPortal() {
     }
   };
 
-  const calculateTotalHours = (timesheet: Timesheet) => {
+  const calculateTotalHours = (timesheet: Timesheet, minimumBillableHours: number = 8) => {
     let total = 0;
     days.forEach(day => {
       const dayTotal = (timesheet as any)[`${day}Total`];
       if (dayTotal) {
-        total += parseFloat(dayTotal) || 0;
+        const actualHours = parseFloat(dayTotal) || 0;
+        const billableHours = Math.max(actualHours, minimumBillableHours);
+        total += billableHours;
       }
     });
     return total.toFixed(2);
@@ -346,20 +348,59 @@ export default function ClientPortal() {
                                 const start = (timesheet as any)[`${day}Start`];
                                 const end = (timesheet as any)[`${day}End`];
                                 const hasWork = client && start && end;
-                                
+
+                                // Calculate date for this day
+                                const weekStart = parseISO(selectedBatch.weekStartDate);
+                                const dayDate = addDays(weekStart, idx);
+
+                                // Calculate billable hours with minimum (default 8)
+                                const minimumBillableHours = 8; // TODO: Get from client settings
+                                const actualHours = parseFloat(total || "0");
+                                const billableHours = Math.max(actualHours, minimumBillableHours);
+                                const minimumApplied = hasWork && billableHours > actualHours;
+
                                 return (
                                   <div
                                     key={day}
-                                    className={`text-center p-1 sm:p-2 rounded ${hasWork ? 'bg-primary/10' : 'bg-muted/50'}`}
+                                    className={`text-center p-2 rounded space-y-0.5 ${hasWork ? 'bg-primary/10' : 'bg-muted/50'}`}
                                   >
-                                    <div className="font-medium text-[10px] sm:text-xs">{dayLabels[idx]}</div>
+                                    {/* Day label */}
+                                    <div className="font-semibold text-xs">{dayLabels[idx]}</div>
+
                                     {hasWork ? (
                                       <>
-                                        <div className="text-primary font-semibold text-[10px] sm:text-xs">{total || '-'}h</div>
-                                        <div className="truncate text-muted-foreground text-[9px] sm:text-xs hidden sm:block" title={client}>{client}</div>
+                                        {/* Date */}
+                                        <div className="text-[10px] text-muted-foreground hidden sm:block">
+                                          {format(dayDate, "MMM d")}
+                                        </div>
+
+                                        {/* Work hours */}
+                                        <div className="text-[10px] text-muted-foreground font-medium hidden sm:block">
+                                          {start} - {end}
+                                        </div>
+
+                                        {/* Billable hours - prominent */}
+                                        <div className="text-primary font-bold text-sm mt-1">
+                                          {billableHours.toFixed(1)}h
+                                        </div>
+
+                                        {/* Minimum applied indicator */}
+                                        {minimumApplied && (
+                                          <div
+                                            className="text-[9px] text-blue-600 dark:text-blue-400 font-medium hidden sm:block"
+                                            title={`Actual: ${actualHours.toFixed(1)}h, Billable: ${billableHours.toFixed(1)}h`}
+                                          >
+                                            Min applied
+                                          </div>
+                                        )}
+
+                                        {/* Client name */}
+                                        <div className="text-[10px] text-muted-foreground truncate hidden sm:block mt-1" title={client}>
+                                          {client}
+                                        </div>
                                       </>
                                     ) : (
-                                      <div className="text-muted-foreground">-</div>
+                                      <div className="text-muted-foreground text-sm py-4">-</div>
                                     )}
                                   </div>
                                 );
@@ -485,9 +526,8 @@ export default function ClientPortal() {
                     data-testid={`button-rating-${star}`}
                   >
                     <Star
-                      className={`w-6 h-6 ${
-                        star <= rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"
-                      }`}
+                      className={`w-6 h-6 ${star <= rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"
+                        }`}
                     />
                   </button>
                 ))}
@@ -539,9 +579,8 @@ export default function ClientPortal() {
                     data-testid={`button-reject-rating-${star}`}
                   >
                     <Star
-                      className={`w-6 h-6 ${
-                        star <= rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"
-                      }`}
+                      className={`w-6 h-6 ${star <= rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"
+                        }`}
                     />
                   </button>
                 ))}

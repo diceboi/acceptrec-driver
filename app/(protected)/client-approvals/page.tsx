@@ -62,6 +62,7 @@ interface Client {
 
 export default function ClientApprovalsPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
 
   const { data: batches, isLoading: batchesLoading } = useQuery<ApprovalBatch[]>({
     queryKey: ["/api/approval-batches"],
@@ -70,6 +71,18 @@ export default function ClientApprovalsPage() {
   const { data: timesheets } = useQuery<Timesheet[]>({
     queryKey: ["/api/timesheets"],
   });
+
+  // Filter batches based on status
+  const filteredBatches = batches?.filter(batch => {
+    if (statusFilter === "all") return true;
+    return batch.status === statusFilter;
+  }) || [];
+
+  // Calculate stats
+  const totalBatches = batches?.length || 0;
+  const pendingBatches = batches?.filter(b => b.status === "pending").length || 0;
+  const approvedBatches = batches?.filter(b => b.status === "approved").length || 0;
+  const rejectedBatches = batches?.filter(b => b.status === "rejected").length || 0;
 
   const handleCopyLink = (token: string) => {
     const approvalUrl = `${window.location.origin}/approve/${token}`;
@@ -138,25 +151,77 @@ export default function ClientApprovalsPage() {
         </Dialog>
       </div>
 
+      {/* Filter Buttons */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
+        <Card className={`cursor-pointer transition-all ${statusFilter === "all" ? "ring-2 ring-primary" : ""}`} onClick={() => setStatusFilter("all")}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Total Batches
+            </CardTitle>
+            <FileText className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalBatches}</div>
+          </CardContent>
+        </Card>
+        <Card className={`cursor-pointer transition-all ${statusFilter === "pending" ? "ring-2 ring-primary" : ""}`} onClick={() => setStatusFilter("pending")}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Pending
+            </CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{pendingBatches}</div>
+          </CardContent>
+        </Card>
+        <Card className={`cursor-pointer transition-all ${statusFilter === "approved" ? "ring-2 ring-primary" : ""}`} onClick={() => setStatusFilter("approved")}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Approved
+            </CardTitle>
+            <CheckCircle className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{approvedBatches}</div>
+          </CardContent>
+        </Card>
+        <Card className={`cursor-pointer transition-all ${statusFilter === "rejected" ? "ring-2 ring-primary" : ""}`} onClick={() => setStatusFilter("rejected")}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Rejected
+            </CardTitle>
+            <AlertTriangle className="h-4 w-4 text-destructive" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{rejectedBatches}</div>
+          </CardContent>
+        </Card>
+      </div>
+
       {batchesLoading ? (
         <div className="space-y-4">
           {[...Array(3)].map((_, i) => (
-             <Skeleton key={i} className="h-32 w-full" />
+            <Skeleton key={i} className="h-32 w-full" />
           ))}
         </div>
-      ) : !batches || batches.length === 0 ? (
+      ) : !filteredBatches || filteredBatches.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Send className="w-16 h-16 text-muted-foreground mb-4 opacity-40" />
-            <h3 className="text-lg font-medium mb-2">No approval batches yet</h3>
+            <h3 className="text-lg font-medium mb-2">
+              {statusFilter === "all" ? "No approval batches yet" : `No ${statusFilter} batches`}
+            </h3>
             <p className="text-muted-foreground text-sm text-center mb-4">
-              Create your first batch to send approval links to clients
+              {statusFilter === "all"
+                ? "Create your first batch to send approval links to clients"
+                : `There are no batches with ${statusFilter} status`}
             </p>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-4">
-          {batches.map((batch) => (
+          {filteredBatches.map((batch) => (
             <Card key={batch.id} className="hover-elevate" data-testid={`card-batch-${batch.id}`}>
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
@@ -220,10 +285,10 @@ function CreateBatchForm({ timesheets, onSuccess }: CreateBatchFormProps) {
       queryClient.invalidateQueries({ queryKey: ["/api/approval-batches"] });
       // Only invalidate specific queries if possible, but timesheets is general
       queryClient.invalidateQueries({ queryKey: ["/api/timesheets"] });
-      
+
       const approvalUrl = `${window.location.origin}/approve/${data.approvalToken}`;
       navigator.clipboard.writeText(approvalUrl);
-      
+
       toast.success("Batch created. Email sending is currently disabled. Link copied to clipboard.");
       onSuccess();
     },
@@ -233,7 +298,7 @@ function CreateBatchForm({ timesheets, onSuccess }: CreateBatchFormProps) {
   });
 
   const selectedClient = clients?.find((c) => c.id === selectedClientId);
-  
+
   // Get unique weeks from timesheets
   const weeks = Array.from(new Set(timesheets.map((t) => t.weekStartDate))).sort().reverse();
 
@@ -256,16 +321,16 @@ function CreateBatchForm({ timesheets, onSuccess }: CreateBatchFormProps) {
   // Filter eligible timesheets
   const eligibleTimesheets = selectedClient && selectedWeek
     ? timesheets.filter((t) => {
-        if (t.weekStartDate !== selectedWeek) return false;
-        
-        // Find if this client is mentioned in the timesheet
-        const hasClient = [
-          t.mondayClient, t.tuesdayClient, t.wednesdayClient, 
-          t.thursdayClient, t.fridayClient, t.saturdayClient, t.sundayClient
-        ].some((c) => clientNamesMatch(c, selectedClient.companyName));
-        
-        return hasClient; 
-      })
+      if (t.weekStartDate !== selectedWeek) return false;
+
+      // Find if this client is mentioned in the timesheet
+      const hasClient = [
+        t.mondayClient, t.tuesdayClient, t.wednesdayClient,
+        t.thursdayClient, t.fridayClient, t.saturdayClient, t.sundayClient
+      ].some((c) => clientNamesMatch(c, selectedClient.companyName));
+
+      return hasClient;
+    })
     : [];
 
   const handleToggleTimesheet = (timesheetId: string) => {
@@ -349,7 +414,7 @@ function CreateBatchForm({ timesheets, onSuccess }: CreateBatchFormProps) {
                     onCheckedChange={() => handleToggleTimesheet(timesheet.id)}
                   />
                   <label htmlFor={timesheet.id} className="text-sm cursor-pointer">
-                    {timesheet.driverName} 
+                    {timesheet.driverName}
                     {timesheet.approvalStatus !== 'draft' && <span className="text-muted-foreground text-xs ml-2">({timesheet.approvalStatus})</span>}
                   </label>
                 </div>
@@ -362,7 +427,7 @@ function CreateBatchForm({ timesheets, onSuccess }: CreateBatchFormProps) {
       {/* Email option disabled in UI */}
       {selectedClient && selectedTimesheets.size > 0 && (
         <div className="space-y-3 pt-2 border-t opacity-60">
-           <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2">
             <Checkbox id="send-email" checked={false} disabled />
             <label htmlFor="send-email" className="text-sm font-medium leading-none text-muted-foreground">
               Send approval email (Disabled)
