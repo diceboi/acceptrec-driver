@@ -314,7 +314,7 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl max-h-[90vh]" data-testid="dialog-edit">
+      <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col" data-testid="dialog-edit">
         <DialogHeader>
           <DialogTitle>Edit Weekly Timesheet</DialogTitle>
           <DialogDescription>
@@ -345,7 +345,7 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
           </Alert>
         )}
 
-        <ScrollArea className="max-h-[60vh] pr-4">
+        <ScrollArea className="flex-1 overflow-auto pr-4 min-h-0">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <FormField
