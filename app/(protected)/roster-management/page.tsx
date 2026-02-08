@@ -303,7 +303,7 @@ export default function RosterManagement() {
                           <AlertDialogHeader>
                             <AlertDialogTitle>Delete Roster</AlertDialogTitle>
                             <AlertDialogDescription>
-                              Are you sure you want to delete this roster? This action cannot be undone.
+                              Are you sure you want to delete this roster? It will be moved to "Deleted Items" and can be restored later.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>

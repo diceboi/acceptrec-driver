@@ -65,9 +65,13 @@ export async function DELETE(
   }
 
   try {
-    // Delete
+    // Soft delete by setting deleted_at and deleted_by
     const [deletedTimesheet] = await db
-      .delete(timesheets)
+      .update(timesheets)
+      .set({
+        deletedAt: new Date(),
+        deletedBy: user.id,
+      })
       .where(eq(timesheets.id, id))
       .returning();
 
@@ -75,9 +79,10 @@ export async function DELETE(
       return new NextResponse("Timesheet not found", { status: 404 });
     }
 
-    return new NextResponse(null, { status: 204 });
+    return new NextResponse("Timesheet deleted (moved to deleted items)", { status: 200 });
   } catch (error) {
     console.error('Error deleting timesheet:', error);
     return new NextResponse("Internal Server Error", { status: 500 });
   }
 }
+

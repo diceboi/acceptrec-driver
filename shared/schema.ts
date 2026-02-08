@@ -40,8 +40,9 @@ export type User = typeof users.$inferSelect;
 export const clients = pgTable("clients", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   companyName: text("company_name").notNull(),
-  contactName: text("contact_name").notNull(),
-  email: varchar("email").notNull(),
+  // Contact fields deprecated - use clientContacts table with isPrimary=1 instead
+  contactName: text("contact_name"), // Optional for backward compatibility
+  email: varchar("email"), // Optional for backward compatibility
   phone: varchar("phone"),
   notes: text("notes"),
   minimumBillableHours: real("minimum_billable_hours").notNull().default(8), // Guaranteed minimum hours per shift (default: 8)
@@ -59,7 +60,10 @@ export const insertClientSchema = createInsertSchema(clients).omit({
   deletedAt: true,
   deletedBy: true,
 }).extend({
-  email: z.string().email("Invalid email address"),
+  // Contact fields are optional - they'll be used to create a primary contact
+  contactName: z.string().optional(),
+  email: z.string().email("Invalid email address").optional(),
+  phone: z.string().optional(),
   minimumBillableHours: z.number().min(0, "Minimum hours must be at least 0").max(24, "Minimum hours cannot exceed 24"),
 });
 

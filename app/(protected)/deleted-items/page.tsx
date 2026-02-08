@@ -1,6 +1,7 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -53,10 +54,10 @@ export default function DeletedItems() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/deleted/users'] });
       queryClient.invalidateQueries({ queryKey: ['/api/users'] });
-      alert("User restored successfully");
+      toast.success("User restored successfully");
     },
     onError: () => {
-      alert("Failed to restore user. Please try again.");
+      toast.error("Failed to restore user. Please try again.");
     },
   });
 
@@ -71,10 +72,10 @@ export default function DeletedItems() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/deleted/timesheets'] });
       queryClient.invalidateQueries({ queryKey: ['/api/timesheets'] });
-      alert("Timesheet restored successfully");
+      toast.success("Timesheet restored successfully");
     },
     onError: () => {
-      alert("Failed to restore timesheet. Please try again.");
+      toast.error("Failed to restore timesheet. Please try again.");
     },
   });
 
@@ -89,10 +90,10 @@ export default function DeletedItems() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/deleted/clients'] });
       queryClient.invalidateQueries({ queryKey: ['/api/clients'] });
-      alert("Client restored successfully");
+      toast.success("Client restored successfully");
     },
     onError: () => {
-      alert("Failed to restore client. Please try again.");
+      toast.error("Failed to restore client. Please try again.");
     },
   });
 
@@ -107,10 +108,10 @@ export default function DeletedItems() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/deleted/rosters'] });
       queryClient.invalidateQueries({ queryKey: ['/api/rosters'] });
-      alert("Roster restored successfully");
+      toast.success("Roster restored successfully");
     },
     onError: () => {
-      alert("Failed to restore roster. Please try again.");
+      toast.error("Failed to restore roster. Please try again.");
     },
   });
 

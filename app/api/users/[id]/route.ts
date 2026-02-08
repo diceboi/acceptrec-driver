@@ -174,23 +174,25 @@ export async function DELETE(
   }
 
   try {
-    const supabaseAdmin = createAdminClient();
+    // Soft delete by setting deleted_at and deleted_by
+    const [deletedUser] = await db
+      .update(users)
+      .set({
+        deletedAt: new Date(),
+        deletedBy: currentUser.id,
+      })
+      .where(eq(users.id, userId))
+      .returning();
 
-    // 1. Delete from Supabase Auth
-    const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId);
-    
-    if (authError) {
-        console.error("Auth delete error:", authError);
-        return new NextResponse("Failed to delete user from Auth system", { status: 500 });
+    if (!deletedUser) {
+      return new NextResponse("User not found", { status: 404 });
     }
-    
-    // 2. Delete from public.users
-    await db.delete(users).where(eq(users.id, userId));
 
-    return new NextResponse("User deleted", { status: 200 });
+    return new NextResponse("User deleted (moved to deleted items)", { status: 200 });
 
   } catch (error) {
     console.error('Error deleting user:', error);
     return new NextResponse("Internal Server Error", { status: 500 });
   }
 }
+

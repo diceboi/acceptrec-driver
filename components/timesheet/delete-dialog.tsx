@@ -53,7 +53,7 @@ export default function DeleteDialog({ timesheet, open, onOpenChange }: DeleteDi
         <AlertDialogHeader>
           <AlertDialogTitle>Delete Weekly Timesheet</AlertDialogTitle>
           <AlertDialogDescription>
-            Are you sure you want to delete the weekly timesheet for {timesheet.driverName} (week of {format(parseISO(timesheet.weekStartDate), 'MMM d, yyyy')})? This action cannot be undone.
+            Are you sure you want to delete the weekly timesheet for {timesheet.driverName} (week of {format(parseISO(timesheet.weekStartDate), 'MMM d, yyyy')})? It will be moved to "Deleted Items" and can be restored later.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

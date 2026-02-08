@@ -23,17 +23,32 @@ export async function POST(
   }
 
   const role = user.user_metadata?.role;
-  const clientId = user.user_metadata?.client_id || user.user_metadata?.clientId;
+  
+  // Check for impersonation (super_admin viewing as client)
+  const body = await req.json();
+  const impersonateClientId = body.impersonateClientId;
+  
+  let effectiveClientId: string | undefined;
   const approverName = user.user_metadata?.full_name || user.email;
-
-  if (role !== 'client' || !clientId) {
+  
+  if (impersonateClientId && role === 'super_admin') {
+    // Super admin impersonating a client
+    effectiveClientId = impersonateClientId;
+  } else if (role === 'client') {
+    // Real client user
+    effectiveClientId = user.user_metadata?.client_id || user.user_metadata?.clientId;
+  } else {
+    // Not a client and not impersonating
     return new NextResponse("Forbidden", { status: 403 });
+  }
+  
+  if (!effectiveClientId) {
+    return new NextResponse("Client ID not found", { status: 400 });
   }
 
   const { id: timesheetId } = await params;
 
   try {
-    const body = await req.json();
     const { rating, comments } = rejectSchema.parse(body);
 
     // Verify access (same logic as approve)
@@ -46,7 +61,7 @@ export async function POST(
       .innerJoin(approvalBatches, eq(batchTimesheets.batchId, approvalBatches.id))
       .where(and(
         eq(batchTimesheets.timesheetId, timesheetId),
-        eq(approvalBatches.clientId, clientId)
+        eq(approvalBatches.clientId, effectiveClientId)
       ));
 
     let isValid = !!link;
@@ -61,7 +76,7 @@ export async function POST(
              const [batch] = await db
                 .select()
                 .from(approvalBatches)
-                .where(and(eq(approvalBatches.id, timesheet.batchId), eq(approvalBatches.clientId, clientId)));
+                .where(and(eq(approvalBatches.id, timesheet.batchId), eq(approvalBatches.clientId, effectiveClientId)));
              if (batch) isValid = true;
         }
     }

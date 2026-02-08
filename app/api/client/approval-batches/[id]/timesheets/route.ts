@@ -17,10 +17,26 @@ export async function GET(
   }
 
   const role = user.user_metadata?.role;
-  const clientId = user.user_metadata?.client_id || user.user_metadata?.clientId;
-
-  if (role !== 'client' || !clientId) {
+  
+  // Check for impersonation (super_admin viewing as client)
+  const { searchParams } = new URL(req.url);
+  const impersonateClientId = searchParams.get('impersonateClientId');
+  
+  let effectiveClientId: string | undefined;
+  
+  if (impersonateClientId && role === 'super_admin') {
+    // Super admin impersonating a client
+    effectiveClientId = impersonateClientId;
+  } else if (role === 'client') {
+    // Real client user
+    effectiveClientId = user.user_metadata?.client_id || user.user_metadata?.clientId;
+  } else {
+    // Not a client and not impersonating
     return new NextResponse("Forbidden", { status: 403 });
+  }
+  
+  if (!effectiveClientId) {
+    return new NextResponse("Client ID not found", { status: 400 });
   }
 
   const { id: batchId } = await params;
@@ -32,7 +48,7 @@ export async function GET(
       .from(approvalBatches)
       .where(and(
         eq(approvalBatches.id, batchId),
-        eq(approvalBatches.clientId, clientId)
+        eq(approvalBatches.clientId, effectiveClientId)
       ));
 
     if (!batch) {

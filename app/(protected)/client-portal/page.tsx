@@ -95,7 +95,7 @@ const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 
 const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export default function ClientPortal() {
-  const { user } = useAuth();
+  const { user, viewAsClientId } = useAuth();
   const queryClient = useQueryClient();
   const [selectedBatch, setSelectedBatch] = useState<ApprovalBatch | null>(null);
   const [selectedTimesheet, setSelectedTimesheet] = useState<Timesheet | null>(null);
@@ -105,17 +105,40 @@ export default function ClientPortal() {
   const [comments, setComments] = useState("");
 
   const { data: clientInfo, isLoading: isLoadingClient } = useQuery<ClientInfo>({
-    queryKey: ["/api/client/company"],
+    queryKey: ["/api/client/company", viewAsClientId],
+    queryFn: async () => {
+      const url = viewAsClientId 
+        ? `/api/client/company?impersonateClientId=${viewAsClientId}`
+        : '/api/client/company';
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error("Failed to fetch client info");
+      }
+      return response.json();
+    },
   });
 
   const { data: batches, isLoading: isLoadingBatches } = useQuery<ApprovalBatch[]>({
-    queryKey: ["/api/client/approval-batches"],
+    queryKey: ["/api/client/approval-batches", viewAsClientId],
+    queryFn: async () => {
+      const url = viewAsClientId 
+        ? `/api/client/approval-batches?impersonateClientId=${viewAsClientId}`
+        : '/api/client/approval-batches';
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error("Failed to fetch batches");
+      }
+      return response.json();
+    },
   });
 
   const { data: timesheets, isLoading: isLoadingTimesheets } = useQuery<Timesheet[]>({
-    queryKey: ["/api/client/approval-batches", selectedBatch?.id, "timesheets"],
+    queryKey: ["/api/client/approval-batches", selectedBatch?.id, "timesheets", viewAsClientId],
     queryFn: async () => {
-      const response = await fetch(`/api/client/approval-batches/${selectedBatch?.id}/timesheets`);
+      const url = viewAsClientId
+        ? `/api/client/approval-batches/${selectedBatch?.id}/timesheets?impersonateClientId=${viewAsClientId}`
+        : `/api/client/approval-batches/${selectedBatch?.id}/timesheets`;
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error("Failed to fetch timesheets");
       }
@@ -129,6 +152,7 @@ export default function ClientPortal() {
       const response = await apiRequest("POST", `/api/client/timesheets/${timesheetId}/approve`, {
         rating,
         comments,
+        ...(viewAsClientId && { impersonateClientId: viewAsClientId }),
       });
       return response.json();
     },
@@ -151,6 +175,7 @@ export default function ClientPortal() {
       const response = await apiRequest("POST", `/api/client/timesheets/${timesheetId}/reject`, {
         rating,
         comments,
+        ...(viewAsClientId && { impersonateClientId: viewAsClientId }),
       });
       return response.json();
     },

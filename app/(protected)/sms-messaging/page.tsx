@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Search, Send, Users, CheckSquare, Square, AlertTriangle } from "lucide-react";
+import { toast } from "sonner";
 
 interface User {
   id: string;
@@ -63,7 +64,7 @@ export default function SMSMessaging() {
 
   const handleSend = () => {
     // DISABLED: Test mode only - no actual SMS sending
-    alert("Test Mode: SMS sending is disabled. No messages were sent.");
+    toast.info("Test Mode: SMS sending is disabled. No messages were sent.");
   };
 
   const remainingChars = 160 - message.length;

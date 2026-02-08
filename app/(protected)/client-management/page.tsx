@@ -51,8 +51,9 @@ import { Badge } from "@/components/ui/badge";
 interface Client {
   id: string;
   companyName: string;
-  contactName: string;
-  email: string;
+  // Contact fields are optional - new clients use clientContacts table
+  contactName?: string;
+  email?: string;
   phone?: string;
   notes?: string;
   minimumBillableHours: number;
@@ -601,6 +602,11 @@ function ClientRow({
     enabled: isExpanded,
   });
 
+  // Find primary contact or use legacy client fields as fallback
+  const primaryContact = contacts.find(c => c.isPrimary === 1);
+  const displayEmail = primaryContact?.email || client.email || "No email";
+  const displayPhone = primaryContact?.phone || client.phone || "N/A";
+
    return (
     <Collapsible open={isExpanded} onOpenChange={onToggle}>
       <div className="border rounded-lg bg-card">
@@ -611,8 +617,8 @@ function ClientRow({
                  <div>
                      <h3 className="font-semibold text-lg">{client.companyName}</h3>
                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                         <span className="flex items-center gap-1"><Mail className="w-3 h-3"/> {client.email}</span>
-                         <span className="flex items-center gap-1"><Phone className="w-3 h-3"/> {client.phone || "N/A"}</span>
+                         <span className="flex items-center gap-1"><Mail className="w-3 h-3"/> {displayEmail}</span>
+                         <span className="flex items-center gap-1"><Phone className="w-3 h-3"/> {displayPhone}</span>
                      </div>
                  </div>
              </div>

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { timesheets, insertTimesheetSchema } from '@/shared/schema';
 import { createClient } from '@/lib/supabase/server';
-import { eq, desc, and } from 'drizzle-orm';
+import { eq, desc, and, isNull } from 'drizzle-orm';
 
 export async function GET(req: Request) {
   const supabase = await createClient();
@@ -21,27 +21,21 @@ export async function GET(req: Request) {
 
   try {
     if (role === 'admin' || role === 'super_admin') {
-      const allTimesheets = await db.select().from(timesheets).orderBy(desc(timesheets.weekStartDate)).limit(1000);
+      // Admin sees all timesheets (excluding deleted ones)
+      const allTimesheets = await db.select()
+        .from(timesheets)
+        .where(isNull(timesheets.deletedAt))
+        .orderBy(desc(timesheets.weekStartDate))
+        .limit(1000);
       return NextResponse.json(allTimesheets);
     } else {
-      // Driver sees only their own
-      // Match by userId (if added to schema) or driverName/email?
-      // Original schema might rely on driverName or a userId field.
-      // Let's check schema.
-      // If schema has userId, use it. If not, use driverName matching email/name?
-      
-      // Assuming schema has NO userId column based on 'insertTimesheetSchema' having driverName.
-      // But typically we should have userId.
-      // I'll check if I can filter by driverName matching the user's name or email.
-      // Original app filtered: 
-      // app.get("/api/timesheets", isAuthenticated, async (req, res) => {
-      //   const user = await storage.getUser(userId);
-      //   if (user.role === 'admin') return all;
-      //   return storage.getTimesheetsByDriverName(user.firstName + ' ' + user.lastName);
-      // })
-      
-      const userTimesheets = await db.select().from(timesheets)
-        .where(eq(timesheets.userId, user.id))
+      // Driver sees only their own (excluding deleted ones)
+      const userTimesheets = await db.select()
+        .from(timesheets)
+        .where(and(
+          eq(timesheets.userId, user.id),
+          isNull(timesheets.deletedAt)
+        ))
         .orderBy(desc(timesheets.weekStartDate));
         
       return NextResponse.json(userTimesheets);
