@@ -33,6 +33,12 @@ async function migratePrimaryContacts() {
 
             console.log(`  - No contacts found. Creating primary contact from client details...`);
             
+            // Validate required fields
+            if (!client.contactName || !client.contactName.trim()) {
+                console.log(`  - Missing contact name, skipping creation.`);
+                continue;
+            }
+            
             // Validate email
             if (!client.email || !client.email.includes('@')) {
                 console.log(`  - Invalid email '${client.email}', skipping creation.`);
@@ -44,7 +50,7 @@ async function migratePrimaryContacts() {
                 clientId: client.id,
                 name: client.contactName,
                 email: client.email,
-                phone: client.phone,
+                phone: client.phone || undefined, // phone can be null, undefined is ok
                 isPrimary: 1,
             });
             console.log(`  - Created contact: ${client.contactName}`);
