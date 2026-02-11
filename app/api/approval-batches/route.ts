@@ -59,6 +59,8 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
+    console.log("Create Approval Batch Payload:", JSON.stringify(body, null, 2));
+
     const { clientName, weekStartDate, timesheetIds, clientId, sendEmail, recipientEmails } = createBatchSchema.parse(body);
 
     const token = crypto.randomBytes(32).toString('hex');
@@ -99,9 +101,28 @@ export async function POST(req: Request) {
     }
 
     // 3. Email Sending Logic (DISABLED per user request)
-    // if (sendEmail && recipientEmails && recipientEmails.length > 0) {
-    //    // console.log("Skipping email sending as requested.");
-    // }
+    // 3. Email Sending Logic
+    if (sendEmail && recipientEmails && recipientEmails.length > 0) {
+       // Construct approval link
+       // Accessing headers to determine host is better, but environmental var is also good. Fallback to localhost if not set.
+       const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+       const approvalLink = `${baseUrl}/approve/${token}`;
+
+       try {
+           const { sendApprovalEmail } = await import('@/lib/email');
+           await Promise.all(recipientEmails.map(email => 
+             sendApprovalEmail({
+               to: email,
+               clientName,
+               weekStartDate,
+               approvalLink
+             })
+           ));
+       } catch (error) {
+           console.error("Failed to send emails:", error);
+           // We don't fail the batch creation if email fails, but we log it.
+       }
+    }
 
     return NextResponse.json({
         ...batch,

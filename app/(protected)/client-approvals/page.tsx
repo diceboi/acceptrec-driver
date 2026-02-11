@@ -278,8 +278,7 @@ function CreateBatchForm({ timesheets, onSuccess }: CreateBatchFormProps) {
 
   const createBatchMutation = useMutation({
     mutationFn: async (data: any) => {
-      // Always force sendEmail false for now due to user request
-      return await apiRequest("POST", "/api/approval-batches", { ...data, sendEmail: false });
+      return await apiRequest("POST", "/api/approval-batches", data);
     },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/approval-batches"] });
@@ -289,7 +288,11 @@ function CreateBatchForm({ timesheets, onSuccess }: CreateBatchFormProps) {
       const approvalUrl = `${window.location.origin}/approve/${data.approvalToken}`;
       navigator.clipboard.writeText(approvalUrl);
 
-      toast.success("Batch created. Email sending is currently disabled. Link copied to clipboard.");
+      if (sendEmail) {
+        toast.success("Batch created and approval email sent. Link copied to clipboard.");
+      } else {
+        toast.success("Batch created. Link copied to clipboard.");
+      }
       onSuccess();
     },
     onError: () => {
@@ -354,6 +357,8 @@ function CreateBatchForm({ timesheets, onSuccess }: CreateBatchFormProps) {
       weekStartDate: selectedWeek,
       timesheetIds: Array.from(selectedTimesheets),
       clientId: selectedClientId,
+      sendEmail,
+      recipientEmails: selectedClient.email ? [selectedClient.email] : [],
     });
   };
 
@@ -424,13 +429,20 @@ function CreateBatchForm({ timesheets, onSuccess }: CreateBatchFormProps) {
         </div>
       )}
 
-      {/* Email option disabled in UI */}
+      {/* Email option */}
       {selectedClient && selectedTimesheets.size > 0 && (
-        <div className="space-y-3 pt-2 border-t opacity-60">
+        <div className="space-y-3 pt-2 border-t">
           <div className="flex items-center space-x-2">
-            <Checkbox id="send-email" checked={false} disabled />
-            <label htmlFor="send-email" className="text-sm font-medium leading-none text-muted-foreground">
-              Send approval email (Disabled)
+            <Checkbox 
+              id="send-email" 
+              checked={sendEmail} 
+              onCheckedChange={(checked) => setSendEmail(checked === true)}
+              disabled={!selectedClient.email}
+            />
+            <label htmlFor="send-email" className={`text-sm font-medium leading-none ${!selectedClient.email ? "text-muted-foreground opacity-70" : "cursor-pointer"}`}>
+              {selectedClient.email 
+                ? `Send approval email to ${selectedClient.contactName || selectedClient.email}`
+                : "Send approval email (No email address on file)"}
             </label>
           </div>
         </div>

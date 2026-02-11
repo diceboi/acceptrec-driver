@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { clients, clientContacts, insertClientSchema } from '@/shared/schema';
 import { createClient } from '@/lib/supabase/server';
-import { desc } from 'drizzle-orm';
+import { desc, eq, and, sql } from 'drizzle-orm';
 
 export async function GET() {
   const supabase = await createClient();
@@ -15,19 +15,49 @@ export async function GET() {
 
   const role = user.user_metadata?.role;
   if (role !== 'admin' && role !== 'super_admin') {
-     // Allow clients to fetch their own data? 
-     // For now restricting to admin as per legacy strictness, or check specific requirement.
-     // Legacy 'ClientManagement' is admin only.
     return new NextResponse("Forbidden", { status: 403 });
   }
 
   try {
     const allClients = await db
-      .select()
+      .select({
+        id: clients.id,
+        companyName: clients.companyName,
+        contactName: sql<string>`COALESCE(${clientContacts.name}, ${clients.contactName})`,
+        email: sql<string>`COALESCE(${clientContacts.email}, ${clients.email})`,
+        phone: sql<string>`COALESCE(${clientContacts.phone}, ${clients.phone})`,
+        notes: clients.notes,
+        minimumBillableHours: clients.minimumBillableHours,
+        createdAt: clients.createdAt,
+        updatedAt: clients.updatedAt,
+      })
       .from(clients)
-      .orderBy(desc(clients.companyName));
+      .leftJoin(clientContacts, and(
+        eq(clientContacts.clientId, clients.id),
+        eq(clientContacts.isPrimary, 1)
+      ))
+      .orderBy(desc(clients.companyName), desc(clientContacts.updatedAt));
 
-    return NextResponse.json(allClients);
+    // Deduplicate clients by ID (keep the first occurrence, which is the most recently updated primary contact due to sorting)
+    const uniqueClientsMap = new Map();
+    allClients.forEach(client => {
+      if (!uniqueClientsMap.has(client.id)) {
+        uniqueClientsMap.set(client.id, client);
+      } else {
+        // Log duplicates for visibility
+        console.warn(`Duplicate primary contact found for client ${client.companyName} (${client.id}). Keeping: ${uniqueClientsMap.get(client.id).email}, Ignoring: ${client.email}`);
+      }
+    });
+
+    const uniqueClients = Array.from(uniqueClientsMap.values());
+
+    console.log("API /clients Fetched (Unique):", uniqueClients.map(c => ({ 
+      id: c.id, 
+      name: c.companyName, 
+      email: c.email
+    })));
+
+    return NextResponse.json(uniqueClients);
   } catch (error) {
     console.error('Error fetching clients:', error);
     return new NextResponse("Internal Server Error", { status: 500 });

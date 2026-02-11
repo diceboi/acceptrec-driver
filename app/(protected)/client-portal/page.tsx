@@ -412,7 +412,25 @@ export default function ClientPortal() {
                                           </div>
                                         )}
 
-                                        {/* Client name */}
+                                          {/* Expense info */}
+                                          {(timesheet as any)[`${day}ExpenseAmount`] > 0 && (
+                                            <div className="text-[10px] text-red-600 dark:text-red-400 font-medium hidden sm:block mt-1">
+                                              Exp: €{parseFloat((timesheet as any)[`${day}ExpenseAmount`]).toFixed(2)}
+                                            </div>
+                                          )}
+                                          {(timesheet as any)[`${day}ExpenseReceipt`] && (
+                                            <a 
+                                              href={(timesheet as any)[`${day}ExpenseReceipt`].startsWith('http') || (timesheet as any)[`${day}ExpenseReceipt`].startsWith('/') ? (timesheet as any)[`${day}ExpenseReceipt`] : `/${(timesheet as any)[`${day}ExpenseReceipt`]}`}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="text-[9px] text-blue-600 hover:underline block mt-0.5"
+                                              onClick={(e) => e.stopPropagation()}
+                                            >
+                                              View Receipt
+                                            </a>
+                                          )}
+
+                                          {/* Client name */}
                                         <div className="text-[10px] text-muted-foreground truncate hidden sm:block mt-1" title={client}>
                                           {client}
                                         </div>

@@ -394,10 +394,18 @@ export default function TimesheetForm() {
     const onSubmit = (data: InsertTimesheet) => {
       createMutation.mutate(data);
     };
+
+    const onInvalid = (errors: any) => {
+      console.error("Form Validation Errors:", errors);
+      const errorCount = Object.keys(errors).length;
+      toast.error(`Validation Failed: ${errorCount} error(s)`, {
+        description: "Please check the form for invalid fields. See console for details.",
+      });
+    };
   
     return (
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="space-y-6">
           <FormField
             control={form.control}
             name="driverName"

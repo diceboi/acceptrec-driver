@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getBucket } from '@/lib/storage';
 import { createClient } from '@/lib/supabase/server';
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { randomUUID } from 'crypto';
 
 export async function POST(req: Request) {
@@ -11,35 +11,34 @@ export async function POST(req: Request) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
-  try {
-    const bucket = getBucket();
-    const filename = `uploads/${randomUUID()}`;
-    const file = bucket.file(filename);
+  // Create a service role client to bypass RLS for storage operations
+  const serviceRoleClient = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
 
-    const [url] = await file.getSignedUrl({
-      version: 'v4',
-      action: 'write',
-      expires: Date.now() + 15 * 60 * 1000, // 15 minutes
-      contentType: 'application/octet-stream',
-    });
+  try {
+    const filename = `uploads/${user.id}/${randomUUID()}`;
+    const bucketName = 'receipts';
+
+    // Generate a signed URL for uploading to Supabase Storage using service role
+    const { data, error } = await serviceRoleClient
+      .storage
+      .from(bucketName)
+      .createSignedUploadUrl(filename);
+
+    if (error) {
+      console.error('Error creating signed upload URL:', error);
+      throw error;
+    }
 
     return NextResponse.json({
       method: "PUT",
-      url,
-      // We pass the filename/path back so the client can send it to /api/receipts or use it directly
+      url: data.signedUrl, 
       objectPath: filename
     });
   } catch (error) {
     console.error('Error generating signed URL:', error);
-    // Return a mock URL for development if GCS is not configured
-    if (process.env.NODE_ENV === 'development') {
-       console.warn('Returning MOCK upload URL because GCS failed');
-       return NextResponse.json({
-         method: "PUT",
-         url: "https://example.com/mock-upload",
-         objectPath: "mock/path"
-       });
-    }
     return new NextResponse("Internal Server Error", { status: 500 });
   }
 }

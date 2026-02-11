@@ -34,6 +34,8 @@ import { AlertTriangle } from "lucide-react";
 import { format, parseISO, addDays } from "date-fns";
 import { useEffect } from "react";
 import { ClientAutocomplete } from "@/components/client-autocomplete";
+import { ObjectUploader } from "@/components/ObjectUploader";
+import { Upload } from "lucide-react";
 
 interface EditDialogProps {
   timesheet: Timesheet;
@@ -51,6 +53,8 @@ type DayFields = {
   totalField: keyof InsertTimesheet;
   nightOutField: keyof InsertTimesheet;
   disableMinHoursField: keyof InsertTimesheet;
+  expenseAmountField: keyof InsertTimesheet;
+  expenseReceiptField: keyof InsertTimesheet;
   reviewField: keyof InsertTimesheet;
 };
 
@@ -109,6 +113,8 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
         totalField: "sundayTotal",
         nightOutField: "sundayNightOut",
         disableMinHoursField: "sundayDisableMinHours",
+        expenseAmountField: "sundayExpenseAmount",
+        expenseReceiptField: "sundayExpenseReceipt",
         reviewField: "sundayReview",
       },
     },
@@ -125,6 +131,8 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
         totalField: "mondayTotal",
         nightOutField: "mondayNightOut",
         disableMinHoursField: "mondayDisableMinHours",
+        expenseAmountField: "mondayExpenseAmount",
+        expenseReceiptField: "mondayExpenseReceipt",
         reviewField: "mondayReview",
       },
     },
@@ -141,6 +149,8 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
         totalField: "tuesdayTotal",
         nightOutField: "tuesdayNightOut",
         disableMinHoursField: "tuesdayDisableMinHours",
+        expenseAmountField: "tuesdayExpenseAmount",
+        expenseReceiptField: "tuesdayExpenseReceipt",
         reviewField: "tuesdayReview",
       },
     },
@@ -157,6 +167,8 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
         totalField: "wednesdayTotal",
         nightOutField: "wednesdayNightOut",
         disableMinHoursField: "wednesdayDisableMinHours",
+        expenseAmountField: "wednesdayExpenseAmount",
+        expenseReceiptField: "wednesdayExpenseReceipt",
         reviewField: "wednesdayReview",
       },
     },
@@ -173,6 +185,8 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
         totalField: "thursdayTotal",
         nightOutField: "thursdayNightOut",
         disableMinHoursField: "thursdayDisableMinHours",
+        expenseAmountField: "thursdayExpenseAmount",
+        expenseReceiptField: "thursdayExpenseReceipt",
         reviewField: "thursdayReview",
       },
     },
@@ -189,6 +203,8 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
         totalField: "fridayTotal",
         nightOutField: "fridayNightOut",
         disableMinHoursField: "fridayDisableMinHours",
+        expenseAmountField: "fridayExpenseAmount",
+        expenseReceiptField: "fridayExpenseReceipt",
         reviewField: "fridayReview",
       },
     },
@@ -205,6 +221,8 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
         totalField: "saturdayTotal",
         nightOutField: "saturdayNightOut",
         disableMinHoursField: "saturdayDisableMinHours",
+        expenseAmountField: "saturdayExpenseAmount",
+        expenseReceiptField: "saturdayExpenseReceipt",
         reviewField: "saturdayReview",
       },
     },
@@ -226,6 +244,8 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
       defaults[day.fields.totalField] = timesheet[day.fields.totalField as keyof Timesheet] || "0";
       defaults[day.fields.nightOutField] = timesheet[day.fields.nightOutField as keyof Timesheet] || "false";
       defaults[day.fields.disableMinHoursField] = timesheet[day.fields.disableMinHoursField as keyof Timesheet] || false;
+      defaults[day.fields.expenseAmountField] = timesheet[day.fields.expenseAmountField as keyof Timesheet] || "0";
+      defaults[day.fields.expenseReceiptField] = timesheet[day.fields.expenseReceiptField as keyof Timesheet] || "";
       defaults[day.fields.reviewField] = timesheet[day.fields.reviewField as keyof Timesheet] || "";
     });
 
@@ -573,6 +593,104 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
                             )}
                           />
                         )}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 mt-3 mb-2">
+                        <FormField
+                          control={form.control}
+                          name={day.fields.expenseAmountField as any}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs">Expense Amount</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  placeholder="0.00"
+                                  {...field}
+                                  data-testid={`input-edit-${day.name.toLowerCase()}-expense-amount`}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name={day.fields.expenseReceiptField as any}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs">Receipt</FormLabel>
+                              <div className="flex items-center gap-2">
+                                {field.value && (
+                                   <a 
+                                     href={field.value.startsWith('http') || field.value.startsWith('/') ? field.value : `/${field.value}`} 
+                                     target="_blank" 
+                                     rel="noopener noreferrer"
+                                     className="text-xs text-blue-600 hover:underline truncate max-w-[100px] block"
+                                     title="View Receipt"
+                                   >
+                                     View
+                                   </a>
+                                )}
+                                <ObjectUploader
+                                  maxNumberOfFiles={1}
+                                  maxFileSize={10485760}
+                                  buttonVariant="outline"
+                                  buttonClassName="shrink-0 h-9 px-2 text-xs"
+                                  onGetUploadParameters={async () => {
+                                    const response = await apiRequest("POST", "/api/objects/upload", {});
+                                    const data = await response.json();
+                                    return {
+                                      method: data.method,
+                                      url: data.url,
+                                    };
+                                  }}
+                                  onComplete={async (result) => {
+                                    try {
+                                      if (!result.successful || result.successful.length === 0) {
+                                        toast.error("Upload Failed");
+                                        return;
+                                      }
+                                      const file = result.successful[0];
+                                      // Get upload URL from response or file meta
+                                      // The local upload returns path in url query param, but let's trust api/receipts logic
+                                      const uploadURL = (file as any).uploadURL || file.meta?.uploadURL || file.response?.body?.url || file.response?.uploadURL;
+
+                                      if (!uploadURL) {
+                                         // If local upload, maybe construct it? 
+                                         // But let's verify what Uppy returns for XHR upload.
+                                         // For now, rely on standard uppy behavior.
+                                         console.error("No upload URL found", file);
+                                         toast.error("Upload URL missing");
+                                         return;
+                                      }
+
+                                      const response = await apiRequest("PUT", "/api/receipts", { 
+                                        receiptURL: uploadURL 
+                                      });
+                                      
+                                      if (!response.ok) throw new Error("Failed to process receipt");
+                                      
+                                      const data = await response.json();
+                                      field.onChange(data.objectPath);
+                                      toast.success("Receipt attached");
+                                    } catch (e) { 
+                                      console.error(e); 
+                                      toast.error("Failed to attach receipt");
+                                    }
+                                  }}
+                                >
+                                  <Upload className="w-3 h-3 mr-1" />
+                                  {field.value ? "Change" : "Upload"}
+                                </ObjectUploader>
+                              </div>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
                       </div>
 
                       <FormField

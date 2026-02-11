@@ -1,12 +1,28 @@
-'use client';
+"use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
-import { ChevronDown, ChevronRight, FileText, ShieldAlert, PenLine } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ChevronDown, ChevronRight, FileText, ShieldAlert, Mail } from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useAuth } from "@/hooks/use-auth";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -15,6 +31,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { toast } from "sonner";
+import { useAuth } from "@/hooks/use-auth";
+import { BatchConfirmationModal } from "@/components/payroll/BatchConfirmationModal";
+import { SendBatchEmail } from "@/components/payroll/SendBatchEmail";
+import { Timesheet, Client } from "@/shared/schema";
 
 interface ClientWeekGroup {
   client: string;
@@ -26,8 +47,8 @@ interface ClientWeekGroup {
     billableHours: number;
     daysWorked: number;
     rating?: number;
-    approvedAt?: string;
-    approvedBy?: string;
+    approvedAt?: Date | null;
+    approvedBy?: string | null;
     batchId?: string | null;
     hasModifications?: boolean;
   }[];
@@ -44,27 +65,222 @@ interface WeekGroup {
 }
 
 export default function PayrollPage() {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [payrollEmail, setPayrollEmail] = useState("");
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
 
-  const { data: weekGroups = [], isLoading } = useQuery<WeekGroup[]>({
-    queryKey: ["/api/payroll"],
+  const { data: timesheets, isLoading: timesheetsLoading } = useQuery<Timesheet[]>({
+    queryKey: ["/api/timesheets"],
   });
 
-  const role = user?.user_metadata?.role;
+  const { data: clients } = useQuery<Client[]>({
+    queryKey: ["/api/clients"],
+  });
 
-  if (!user) {
+  // Helper functions - ported from legacy code
+  const normalizeClientName = (name: string): string => {
+    return name
+      .toLowerCase()
+      .trim()
+      .replace(/[.,&'"()[\]{}]/g, ' ')
+      .replace(/\band\b/g, ' ')
+      .replace(/\b(inc|incorporated|ltd|limited|llc|corp|corporation|co|company|plc)\b/g, '')
+      .replace(/^(the|a|aa)\s+/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
+
+  const getNameMatchScore = (name1: string, name2: string): number => {
+    if (name1 === name2) return 1.0;
+    const words1 = name1.split(/\s+/).filter(w => w.length > 1);
+    const words2 = name2.split(/\s+/).filter(w => w.length > 1);
+    if (words1.length === 0 || words2.length === 0) return 0;
+    if (words1[0] !== words2[0]) return 0;
+    const matchingWords = words1.filter(w => words2.includes(w));
+    return matchingWords.length / Math.max(words1.length, words2.length);
+  };
+
+  const getClientMinimumHours = (clientName: string): number => {
+    if (!clients) return 8;
+    const normalizedName = normalizeClientName(clientName);
+    
+    let matchingClient = clients.find(c => 
+      normalizeClientName(c.companyName) === normalizedName
+    );
+    
+    if (!matchingClient) {
+      let bestMatch: Client | undefined;
+      let bestScore = 0;
+      for (const client of clients) {
+        const clientNorm = normalizeClientName(client.companyName);
+        const score = getNameMatchScore(normalizedName, clientNorm);
+        if (score > bestScore && score > 0.5) {
+          bestScore = score;
+          bestMatch = client;
+        }
+      }
+      matchingClient = bestMatch;
+    }
+    return matchingClient?.minimumBillableHours ?? 8;
+  };
+
+  const sendEmailMutation = useMutation({
+    mutationFn: async (email: string) => {
+      const response = await fetch("/api/payroll/send", {
+        method: "POST",
+        body: JSON.stringify({ email }),
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || "Failed to send email");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      toast.success("Payroll report has been sent successfully.");
+      setEmailDialogOpen(false);
+      setPayrollEmail("");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const handleSendEmail = () => {
+    if (!payrollEmail || !payrollEmail.includes('@')) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+    sendEmailMutation.mutate(payrollEmail);
+  };
+
+  const toggleRow = (key: string) => {
+    const newExpanded = new Set(expandedRows);
+    if (newExpanded.has(key)) {
+      newExpanded.delete(key);
+    } else {
+      newExpanded.add(key);
+    }
+    setExpandedRows(newExpanded);
+  };
+
+  const getWeekGroups = (): WeekGroup[] => {
+    if (!timesheets) return [];
+
+    const approvedTimesheets = timesheets.filter(
+      t => t.approvalStatus === "approved"
+    );
+
+    const weeks = new Map<string, WeekGroup>();
+
+    approvedTimesheets.forEach(timesheet => {
+      const weekStart = timesheet.weekStartDate;
+      
+      if (!weeks.has(weekStart)) {
+        weeks.set(weekStart, {
+          weekStartDate: weekStart,
+          clients: [],
+          totalActualHours: 0,
+          totalBillableHours: 0,
+          driverCount: 0,
+        });
+      }
+
+      const week = weeks.get(weekStart)!;
+
+      const days = [
+        { client: timesheet.sundayClient, total: timesheet.sundayTotal },
+        { client: timesheet.mondayClient, total: timesheet.mondayTotal },
+        { client: timesheet.tuesdayClient, total: timesheet.tuesdayTotal },
+        { client: timesheet.wednesdayClient, total: timesheet.wednesdayTotal },
+        { client: timesheet.thursdayClient, total: timesheet.thursdayTotal },
+        { client: timesheet.fridayClient, total: timesheet.fridayTotal },
+        { client: timesheet.saturdayClient, total: timesheet.saturdayTotal },
+      ];
+
+      const clientData = new Map<string, { actualHours: number; daysWorked: number }>();
+      
+      days.forEach(day => {
+        if (day.client && day.client.trim()) {
+          const hours = parseFloat(day.total || "0");
+          if (hours > 0) {
+            const existing = clientData.get(day.client) || { actualHours: 0, daysWorked: 0 };
+            existing.actualHours += hours;
+            existing.daysWorked += 1;
+            clientData.set(day.client, existing);
+          }
+        }
+      });
+
+      clientData.forEach((data, client) => {
+        let clientGroup = week.clients.find(c => c.client === client);
+        const minimumHours = getClientMinimumHours(client);
+        
+        if (!clientGroup) {
+          clientGroup = {
+            client,
+            batchId: timesheet.batchId,
+            minimumBillableHours: minimumHours,
+            drivers: [],
+            totalActualHours: 0,
+            totalBillableHours: 0,
+          };
+          week.clients.push(clientGroup);
+        }
+
+        if (timesheet.batchId && !clientGroup.batchId) {
+          clientGroup.batchId = timesheet.batchId;
+        }
+
+        const billableHours = Math.max(data.actualHours, data.daysWorked * minimumHours);
+
+        clientGroup.drivers.push({
+          name: timesheet.driverName,
+          actualHours: data.actualHours,
+          billableHours: billableHours,
+          daysWorked: data.daysWorked,
+          rating: timesheet.clientRating || undefined,
+          approvedAt: timesheet.clientApprovedAt,
+          approvedBy: timesheet.clientApprovedBy,
+          batchId: timesheet.batchId,
+          hasModifications: !!(timesheet.clientModifications && Object.keys(timesheet.clientModifications as object).length > 0),
+        });
+        clientGroup.totalActualHours += data.actualHours;
+        clientGroup.totalBillableHours += billableHours;
+        week.totalActualHours += data.actualHours;
+        week.totalBillableHours += billableHours;
+      });
+    });
+
+    weeks.forEach(week => {
+      const uniqueDrivers = new Set<string>();
+      week.clients.forEach(client => {
+        client.drivers.forEach(driver => uniqueDrivers.add(driver.name));
+      });
+      week.driverCount = uniqueDrivers.size;
+      week.clients.sort((a, b) => a.client.localeCompare(b.client));
+    });
+
+    return Array.from(weeks.values())
+      .sort((a, b) => b.weekStartDate.localeCompare(a.weekStartDate));
+  };
+
+  const weekGroups = getWeekGroups();
+
+  if (authLoading || timesheetsLoading) {
     return (
-      <div className="container mx-auto p-6 max-w-6xl">
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-muted rounded w-1/3"></div>
-          <div className="h-64 bg-muted rounded"></div>
-        </div>
+      <div className="container mx-auto p-6 max-w-6xl space-y-4">
+        <div className="h-8 bg-muted rounded w-1/3 animate-pulse"></div>
+        <div className="h-64 bg-muted rounded animate-pulse"></div>
       </div>
     );
   }
 
-  if (role !== "admin" && role !== "super_admin") {
+  // Admin access check (assuming 'admin' or 'super_admin' roles)
+  const userRole = user?.user_metadata?.role;
+  if (userRole !== "admin" && userRole !== "super_admin") {
     return (
       <div className="container mx-auto p-6 max-w-6xl">
         <Card>
@@ -82,32 +298,11 @@ export default function PayrollPage() {
     );
   }
 
-  const toggleRow = (key: string) => {
-    const newExpanded = new Set(expandedRows);
-    if (newExpanded.has(key)) {
-      newExpanded.delete(key);
-    } else {
-      newExpanded.add(key);
-    }
-    setExpandedRows(newExpanded);
-  };
-
-  if (isLoading) {
-    return (
-      <div className="container mx-auto p-6 max-w-6xl">
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-muted rounded w-1/3"></div>
-          <div className="h-64 bg-muted rounded"></div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="container mx-auto p-6 max-w-6xl">
       <div className="mb-6 flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2" data-testid="heading-payroll">
+          <h1 className="text-3xl font-bold flex items-center gap-2">
             <FileText className="w-8 h-8" />
             Payroll Export
           </h1>
@@ -115,6 +310,44 @@ export default function PayrollPage() {
             Approved timesheets grouped by client and week for payroll processing
           </p>
         </div>
+        
+        {weekGroups.length > 0 && (
+          <Dialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Mail className="w-4 h-4 mr-2" />
+                Send to Payroll
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Send Payroll Report</DialogTitle>
+                <DialogDescription>
+                  Enter the email address to send the complete payroll report with batch confirmations
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="payroll-email">Payroll Email Address</Label>
+                  <Input
+                    id="payroll-email"
+                    type="email"
+                    placeholder="payroll@company.com"
+                    value={payrollEmail}
+                    onChange={(e) => setPayrollEmail(e.target.value)}
+                  />
+                </div>
+                <Button 
+                  onClick={handleSendEmail} 
+                  disabled={sendEmailMutation.isPending}
+                  className="w-full"
+                >
+                  {sendEmailMutation.isPending ? "Sending..." : "Send Report"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       {weekGroups.length === 0 ? (
@@ -136,9 +369,8 @@ export default function PayrollPage() {
                 <CardHeader className="pb-4">
                   <div className="flex items-center justify-between">
                     <div
-                      className="flex items-center gap-3 cursor-pointer hover:bg-muted/50 rounded-md -m-2 p-2 transition-colors"
+                      className="flex items-center gap-3 cursor-pointer hover:bg-muted/50 rounded-md -m-2 p-2 select-none"
                       onClick={() => toggleRow(weekKey)}
-                      data-testid={`row-week-${weekKey}`}
                     >
                       {isWeekExpanded ? (
                         <ChevronDown className="w-5 h-5 text-muted-foreground" />
@@ -171,7 +403,7 @@ export default function PayrollPage() {
                           <TableHead>Client</TableHead>
                           <TableHead className="text-right">Drivers</TableHead>
                           <TableHead className="text-right">Hours</TableHead>
-                          <TableHead>Min. Hours</TableHead>
+                          <TableHead>Confirmation</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -183,9 +415,8 @@ export default function PayrollPage() {
                             <>
                               <TableRow
                                 key={clientKey}
-                                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                                className="cursor-pointer hover:bg-muted/50"
                                 onClick={() => toggleRow(clientKey)}
-                                data-testid={`row-client-${clientKey}`}
                               >
                                 <TableCell>
                                   {isClientExpanded ? (
@@ -210,16 +441,21 @@ export default function PayrollPage() {
                                     </span>
                                   )}
                                 </TableCell>
-                                <TableCell>
-                                  <Badge variant="outline" className="text-xs">
-                                    {client.minimumBillableHours}h/day
-                                  </Badge>
+                                <TableCell onClick={(e) => e.stopPropagation()}>
+                                  {client.batchId ? (
+                                    <div className="flex items-center gap-2">
+                                      <BatchConfirmationModal batchId={client.batchId} />
+                                      <SendBatchEmail batchId={client.batchId} clientName={client.client} />
+                                    </div>
+                                  ) : (
+                                    <span className="text-sm text-muted-foreground">No batch</span>
+                                  )}
                                 </TableCell>
                               </TableRow>
                               
                               {isClientExpanded && (
                                 <TableRow key={`${clientKey}-details`}>
-                                  <TableCell colSpan={5} className="bg-muted/50 p-0">
+                                  <TableCell colSpan={5} className="bg-muted/30 p-0">
                                     <div className="p-4">
                                       <h4 className="text-sm font-semibold mb-3">Driver Hours</h4>
                                       <Table>
@@ -228,59 +464,16 @@ export default function PayrollPage() {
                                             <TableHead>Driver Name</TableHead>
                                             <TableHead className="text-right">Actual</TableHead>
                                             <TableHead className="text-right">Billable</TableHead>
-                                            <TableHead className="text-right">Days</TableHead>
-                                            <TableHead className="text-right">Rating</TableHead>
-                                            <TableHead>Approved By</TableHead>
-                                            <TableHead className="text-right">Approved Date</TableHead>
+                                            <TableHead className="text-right">Shifts</TableHead>
                                           </TableRow>
                                         </TableHeader>
                                         <TableBody>
                                           {client.drivers.map((driver, idx) => (
-                                            <TableRow key={`${driver.name}-${idx}`}>
-                                              <TableCell className="font-medium">
-                                                <div className="flex items-center gap-2">
-                                                  {driver.name}
-                                                  {driver.hasModifications && (
-                                                    <Badge variant="outline" className="gap-1 border-amber-500 text-amber-600 text-xs">
-                                                      <PenLine className="w-3 h-3" />
-                                                      Edited
-                                                    </Badge>
-                                                  )}
-                                                </div>
-                                              </TableCell>
-                                              <TableCell className="text-right">
-                                                {driver.actualHours.toFixed(2)}h
-                                              </TableCell>
-                                              <TableCell className="text-right font-semibold">
-                                                {driver.billableHours.toFixed(2)}h
-                                                {driver.billableHours > driver.actualHours && (
-                                                  <Badge variant="secondary" className="ml-1 text-xs">
-                                                    +{(driver.billableHours - driver.actualHours).toFixed(2)}
-                                                  </Badge>
-                                                )}
-                                              </TableCell>
-                                              <TableCell className="text-right text-muted-foreground">
-                                                {driver.daysWorked}
-                                              </TableCell>
-                                              <TableCell className="text-right">
-                                                {driver.rating ? (
-                                                  <Badge variant="outline">
-                                                    {driver.rating}/10
-                                                  </Badge>
-                                                ) : (
-                                                  <span className="text-muted-foreground">—</span>
-                                                )}
-                                              </TableCell>
-                                              <TableCell className="text-sm">
-                                                {driver.approvedBy || (
-                                                  <span className="text-muted-foreground">—</span>
-                                                )}
-                                              </TableCell>
-                                              <TableCell className="text-right text-sm text-muted-foreground">
-                                                {driver.approvedAt
-                                                  ? format(parseISO(driver.approvedAt), "MMM d, yyyy")
-                                                  : "—"}
-                                              </TableCell>
+                                            <TableRow key={idx} className="border-0">
+                                              <TableCell>{driver.name}</TableCell>
+                                              <TableCell className="text-right">{driver.actualHours.toFixed(2)}</TableCell>
+                                              <TableCell className="text-right font-medium">{driver.billableHours.toFixed(2)}</TableCell>
+                                              <TableCell className="text-right">{driver.daysWorked}</TableCell>
                                             </TableRow>
                                           ))}
                                         </TableBody>
