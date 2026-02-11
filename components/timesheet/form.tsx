@@ -44,6 +44,7 @@ type DayFields = {
   totalField: keyof InsertTimesheet;
   reviewField: keyof InsertTimesheet;
   nightOutField: keyof InsertTimesheet;
+  disableMinHoursField: keyof InsertTimesheet;
   expenseAmountField: keyof InsertTimesheet;
   expenseReceiptField: keyof InsertTimesheet;
   driverRatingField: keyof InsertTimesheet;
@@ -126,6 +127,7 @@ export default function TimesheetForm() {
           totalField: "sundayTotal",
           reviewField: "sundayReview",
           nightOutField: "sundayNightOut",
+          disableMinHoursField: "sundayDisableMinHours",
           expenseAmountField: "sundayExpenseAmount",
           expenseReceiptField: "sundayExpenseReceipt",
           driverRatingField: "sundayDriverRating",
@@ -145,6 +147,7 @@ export default function TimesheetForm() {
           totalField: "mondayTotal",
           reviewField: "mondayReview",
           nightOutField: "mondayNightOut",
+          disableMinHoursField: "mondayDisableMinHours",
           expenseAmountField: "mondayExpenseAmount",
           expenseReceiptField: "mondayExpenseReceipt",
           driverRatingField: "mondayDriverRating",
@@ -164,6 +167,7 @@ export default function TimesheetForm() {
           totalField: "tuesdayTotal",
           reviewField: "tuesdayReview",
           nightOutField: "tuesdayNightOut",
+          disableMinHoursField: "tuesdayDisableMinHours",
           expenseAmountField: "tuesdayExpenseAmount",
           expenseReceiptField: "tuesdayExpenseReceipt",
           driverRatingField: "tuesdayDriverRating",
@@ -183,6 +187,7 @@ export default function TimesheetForm() {
           totalField: "wednesdayTotal",
           reviewField: "wednesdayReview",
           nightOutField: "wednesdayNightOut",
+          disableMinHoursField: "wednesdayDisableMinHours",
           expenseAmountField: "wednesdayExpenseAmount",
           expenseReceiptField: "wednesdayExpenseReceipt",
           driverRatingField: "wednesdayDriverRating",
@@ -202,6 +207,7 @@ export default function TimesheetForm() {
           totalField: "thursdayTotal",
           reviewField: "thursdayReview",
           nightOutField: "thursdayNightOut",
+          disableMinHoursField: "thursdayDisableMinHours",
           expenseAmountField: "thursdayExpenseAmount",
           expenseReceiptField: "thursdayExpenseReceipt",
           driverRatingField: "thursdayDriverRating",
@@ -221,6 +227,7 @@ export default function TimesheetForm() {
           totalField: "fridayTotal",
           reviewField: "fridayReview",
           nightOutField: "fridayNightOut",
+          disableMinHoursField: "fridayDisableMinHours",
           expenseAmountField: "fridayExpenseAmount",
           expenseReceiptField: "fridayExpenseReceipt",
           driverRatingField: "fridayDriverRating",
@@ -240,6 +247,7 @@ export default function TimesheetForm() {
           totalField: "saturdayTotal",
           reviewField: "saturdayReview",
           nightOutField: "saturdayNightOut",
+          disableMinHoursField: "saturdayDisableMinHours",
           expenseAmountField: "saturdayExpenseAmount",
           expenseReceiptField: "saturdayExpenseReceipt",
           driverRatingField: "saturdayDriverRating",
@@ -268,6 +276,7 @@ export default function TimesheetForm() {
         defaults[day.fields.totalField] = "0";
         defaults[day.fields.reviewField] = "";
         defaults[day.fields.nightOutField] = "false";
+        defaults[day.fields.disableMinHoursField] = false;
         defaults[day.fields.expenseAmountField] = "";
         defaults[day.fields.expenseReceiptField] = "";
         defaults[day.fields.driverRatingField] = undefined;
@@ -617,25 +626,47 @@ export default function TimesheetForm() {
                   />
   
                   <div className="pt-3 border-t">
-                    <FormField
-                      control={form.control}
-                      name={day.fields.nightOutField as any}
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-center space-x-2 space-y-0">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value === "true"}
-                              onCheckedChange={(checked) => field.onChange(checked ? "true" : "false")}
-                              data-testid={`checkbox-${day.name.toLowerCase()}-night-out`}
-                            />
-                          </FormControl>
-                          <FormLabel className="text-xs font-normal cursor-pointer">
-                            Night Out (driver stayed overnight)
-                          </FormLabel>
-                          <FormMessage />
-                        </FormItem>
+                    <div className="grid grid-cols-2 gap-3 mb-2">
+                      <FormField
+                        control={form.control}
+                        name={day.fields.nightOutField as any}
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center space-x-2 space-y-0 rounded-md border p-3">
+                            <FormControl>
+                              <Checkbox
+                                checked={field.value === "true"}
+                                onCheckedChange={(checked) => field.onChange(checked ? "true" : "false")}
+                                data-testid={`checkbox-${day.name.toLowerCase()}-night-out`}
+                              />
+                            </FormControl>
+                            <FormLabel className="text-xs font-normal cursor-pointer">
+                              Night Out (driver stayed overnight)
+                            </FormLabel>
+                          </FormItem>
+                        )}
+                      />
+
+                      {(user?.user_metadata?.role === 'admin' || user?.user_metadata?.role === 'super_admin') && (
+                        <FormField
+                          control={form.control}
+                          name={day.fields.disableMinHoursField as any}
+                          render={({ field }) => (
+                            <FormItem className="flex flex-row items-center space-x-2 space-y-0 rounded-md border p-3">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                  data-testid={`checkbox-${day.name.toLowerCase()}-disable-min-ours`}
+                                />
+                              </FormControl>
+                              <FormLabel className="text-xs font-normal cursor-pointer">
+                                Disable Min Hours
+                              </FormLabel>
+                            </FormItem>
+                          )}
+                        />
                       )}
-                    />
+                    </div>
   
                     <div className="grid grid-cols-2 gap-3 mt-3">
                       <FormField

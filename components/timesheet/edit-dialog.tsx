@@ -6,6 +6,7 @@ import { insertTimesheetSchema, type InsertTimesheet, type Timesheet } from "@/s
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/use-auth";
 import {
   Dialog,
   DialogContent,
@@ -49,6 +50,7 @@ type DayFields = {
   otherWorkField: keyof InsertTimesheet;
   totalField: keyof InsertTimesheet;
   nightOutField: keyof InsertTimesheet;
+  disableMinHoursField: keyof InsertTimesheet;
   reviewField: keyof InsertTimesheet;
 };
 
@@ -89,6 +91,7 @@ const calculateHours = (startTime: string, endTime: string, breakTime: string): 
 };
 
 export default function EditDialog({ timesheet, open, onOpenChange }: EditDialogProps) {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const weekStart = parseISO(timesheet.weekStartDate);
 
@@ -105,6 +108,7 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
         otherWorkField: "sundayOtherWork",
         totalField: "sundayTotal",
         nightOutField: "sundayNightOut",
+        disableMinHoursField: "sundayDisableMinHours",
         reviewField: "sundayReview",
       },
     },
@@ -120,6 +124,7 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
         otherWorkField: "mondayOtherWork",
         totalField: "mondayTotal",
         nightOutField: "mondayNightOut",
+        disableMinHoursField: "mondayDisableMinHours",
         reviewField: "mondayReview",
       },
     },
@@ -135,6 +140,7 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
         otherWorkField: "tuesdayOtherWork",
         totalField: "tuesdayTotal",
         nightOutField: "tuesdayNightOut",
+        disableMinHoursField: "tuesdayDisableMinHours",
         reviewField: "tuesdayReview",
       },
     },
@@ -150,6 +156,7 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
         otherWorkField: "wednesdayOtherWork",
         totalField: "wednesdayTotal",
         nightOutField: "wednesdayNightOut",
+        disableMinHoursField: "wednesdayDisableMinHours",
         reviewField: "wednesdayReview",
       },
     },
@@ -165,6 +172,7 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
         otherWorkField: "thursdayOtherWork",
         totalField: "thursdayTotal",
         nightOutField: "thursdayNightOut",
+        disableMinHoursField: "thursdayDisableMinHours",
         reviewField: "thursdayReview",
       },
     },
@@ -180,6 +188,7 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
         otherWorkField: "fridayOtherWork",
         totalField: "fridayTotal",
         nightOutField: "fridayNightOut",
+        disableMinHoursField: "fridayDisableMinHours",
         reviewField: "fridayReview",
       },
     },
@@ -195,6 +204,7 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
         otherWorkField: "saturdayOtherWork",
         totalField: "saturdayTotal",
         nightOutField: "saturdayNightOut",
+        disableMinHoursField: "saturdayDisableMinHours",
         reviewField: "saturdayReview",
       },
     },
@@ -215,6 +225,7 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
       defaults[day.fields.otherWorkField] = timesheet[day.fields.otherWorkField as keyof Timesheet] || "0";
       defaults[day.fields.totalField] = timesheet[day.fields.totalField as keyof Timesheet] || "0";
       defaults[day.fields.nightOutField] = timesheet[day.fields.nightOutField as keyof Timesheet] || "false";
+      defaults[day.fields.disableMinHoursField] = timesheet[day.fields.disableMinHoursField as keyof Timesheet] || false;
       defaults[day.fields.reviewField] = timesheet[day.fields.reviewField as keyof Timesheet] || "";
     });
 
@@ -518,29 +529,51 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
                         />
                       </div>
 
-                      <FormField
-                        control={form.control}
-                        name={day.fields.nightOutField as any}
-                        render={({ field }) => (
-                          <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-3">
-                            <FormControl>
-                              <Checkbox
-                                checked={field.value === "true"}
-                                onCheckedChange={(checked) => field.onChange(checked ? "true" : "false")}
-                                data-testid={`checkbox-edit-${day.name.toLowerCase()}-nightout`}
-                              />
-                            </FormControl>
-                            <div className="space-y-1 leading-none">
-                              <FormLabel className="text-xs cursor-pointer">
-                                Night Out 🌙
-                              </FormLabel>
-                              <p className="text-xs text-muted-foreground">
-                                Check if driver stayed out overnight for this shift
-                              </p>
-                            </div>
-                          </FormItem>
+                      <div className="grid grid-cols-2 gap-3 mb-2">
+                        <FormField
+                          control={form.control}
+                          name={day.fields.nightOutField as any}
+                          render={({ field }) => (
+                            <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-3">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value === "true"}
+                                  onCheckedChange={(checked) => field.onChange(checked ? "true" : "false")}
+                                  data-testid={`checkbox-edit-${day.name.toLowerCase()}-nightout`}
+                                />
+                              </FormControl>
+                              <div className="space-y-1 leading-none">
+                                <FormLabel className="text-xs cursor-pointer">
+                                  Night Out 🌙
+                                </FormLabel>
+                              </div>
+                            </FormItem>
+                          )}
+                        />
+
+                        {(user?.user_metadata?.role === 'admin' || user?.user_metadata?.role === 'super_admin') && (
+                          <FormField
+                            control={form.control}
+                            name={day.fields.disableMinHoursField as any}
+                            render={({ field }) => (
+                              <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-3">
+                                <FormControl>
+                                  <Checkbox
+                                    checked={field.value}
+                                    onCheckedChange={field.onChange}
+                                    data-testid={`checkbox-edit-${day.name.toLowerCase()}-disable-min-hours`}
+                                  />
+                                </FormControl>
+                                <div className="space-y-1 leading-none">
+                                  <FormLabel className="text-xs cursor-pointer">
+                                    Disable Min Hours
+                                  </FormLabel>
+                                </div>
+                              </FormItem>
+                            )}
+                          />
                         )}
-                      />
+                      </div>
 
                       <FormField
                         control={form.control}

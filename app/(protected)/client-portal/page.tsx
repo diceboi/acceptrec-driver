@@ -81,6 +81,13 @@ interface Timesheet {
   sundayEnd: string | null;
   sundayBreak: number | null;
   sundayTotal: string | null;
+  sundayDisableMinHours: boolean;
+  mondayDisableMinHours: boolean;
+  tuesdayDisableMinHours: boolean;
+  wednesdayDisableMinHours: boolean;
+  thursdayDisableMinHours: boolean;
+  fridayDisableMinHours: boolean;
+  saturdayDisableMinHours: boolean;
 }
 
 interface ClientInfo {
@@ -222,9 +229,10 @@ export default function ClientPortal() {
     let total = 0;
     days.forEach(day => {
       const dayTotal = (timesheet as any)[`${day}Total`];
+      const disableMin = (timesheet as any)[`${day}DisableMinHours`];
       if (dayTotal) {
         const actualHours = parseFloat(dayTotal) || 0;
-        const billableHours = Math.max(actualHours, minimumBillableHours);
+        const billableHours = disableMin ? actualHours : Math.max(actualHours, minimumBillableHours);
         total += billableHours;
       }
     });
@@ -349,15 +357,16 @@ export default function ClientPortal() {
                                 const end = (timesheet as any)[`${day}End`];
                                 const hasWork = client && start && end;
 
-                                // Calculate date for this day
                                 const weekStart = parseISO(selectedBatch.weekStartDate);
                                 const dayDate = addDays(weekStart, idx);
 
                                 // Calculate billable hours with minimum (default 8)
                                 const minimumBillableHours = 8; // TODO: Get from client settings
                                 const actualHours = parseFloat(total || "0");
-                                const billableHours = Math.max(actualHours, minimumBillableHours);
-                                const minimumApplied = hasWork && billableHours > actualHours;
+                                const disableMin = (timesheet as any)[`${day}DisableMinHours`];
+                                const billableHours = disableMin ? actualHours : Math.max(actualHours, minimumBillableHours);
+                                const minimumApplied = !disableMin && hasWork && billableHours > actualHours;
+                                const minDisabled = disableMin && hasWork && actualHours < minimumBillableHours;
 
                                 return (
                                   <div
@@ -391,6 +400,15 @@ export default function ClientPortal() {
                                             title={`Actual: ${actualHours.toFixed(1)}h, Billable: ${billableHours.toFixed(1)}h`}
                                           >
                                             Min applied
+                                          </div>
+                                        )}
+
+                                        {minDisabled && (
+                                          <div
+                                            className="text-[9px] text-orange-600 dark:text-orange-400 font-medium hidden sm:block"
+                                            title={`Actual: ${actualHours.toFixed(1)}h, Min (8h) disabled`}
+                                          >
+                                            Min disabled
                                           </div>
                                         )}
 

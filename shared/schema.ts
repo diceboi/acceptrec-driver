@@ -1,7 +1,7 @@
 // Referenced from Replit Auth and PostgreSQL database blueprints
 import { sql } from "drizzle-orm";
 import { relations } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, index, uniqueIndex, jsonb, integer, real } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, index, uniqueIndex, jsonb, integer, real, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -193,6 +193,7 @@ export const timesheets = pgTable("timesheets", {
   mondayTotal: text("monday_total").notNull().default("0"),
   mondayReview: text("monday_review").notNull().default(""),
   mondayNightOut: text("monday_night_out").notNull().default("false"), // "true" if driver stayed overnight
+  mondayDisableMinHours: boolean("monday_disable_min_hours").notNull().default(false),
   mondayExpenseAmount: text("monday_expense_amount").notNull().default("0"), // Expense amount for the day
   mondayExpenseReceipt: text("monday_expense_receipt").notNull().default(""), // Object storage path to receipt
   mondayDriverRating: integer("monday_driver_rating"), // Driver's rating of client (1-10)
@@ -208,6 +209,7 @@ export const timesheets = pgTable("timesheets", {
   tuesdayTotal: text("tuesday_total").notNull().default("0"),
   tuesdayReview: text("tuesday_review").notNull().default(""),
   tuesdayNightOut: text("tuesday_night_out").notNull().default("false"),
+  tuesdayDisableMinHours: boolean("tuesday_disable_min_hours").notNull().default(false),
   tuesdayExpenseAmount: text("tuesday_expense_amount").notNull().default("0"),
   tuesdayExpenseReceipt: text("tuesday_expense_receipt").notNull().default(""),
   tuesdayDriverRating: integer("tuesday_driver_rating"), // Driver's rating of client (1-10)
@@ -223,6 +225,7 @@ export const timesheets = pgTable("timesheets", {
   wednesdayTotal: text("wednesday_total").notNull().default("0"),
   wednesdayReview: text("wednesday_review").notNull().default(""),
   wednesdayNightOut: text("wednesday_night_out").notNull().default("false"),
+  wednesdayDisableMinHours: boolean("wednesday_disable_min_hours").notNull().default(false),
   wednesdayExpenseAmount: text("wednesday_expense_amount").notNull().default("0"),
   wednesdayExpenseReceipt: text("wednesday_expense_receipt").notNull().default(""),
   wednesdayDriverRating: integer("wednesday_driver_rating"), // Driver's rating of client (1-10)
@@ -238,6 +241,7 @@ export const timesheets = pgTable("timesheets", {
   thursdayTotal: text("thursday_total").notNull().default("0"),
   thursdayReview: text("thursday_review").notNull().default(""),
   thursdayNightOut: text("thursday_night_out").notNull().default("false"),
+  thursdayDisableMinHours: boolean("thursday_disable_min_hours").notNull().default(false),
   thursdayExpenseAmount: text("thursday_expense_amount").notNull().default("0"),
   thursdayExpenseReceipt: text("thursday_expense_receipt").notNull().default(""),
   thursdayDriverRating: integer("thursday_driver_rating"), // Driver's rating of client (1-10)
@@ -253,6 +257,7 @@ export const timesheets = pgTable("timesheets", {
   fridayTotal: text("friday_total").notNull().default("0"),
   fridayReview: text("friday_review").notNull().default(""),
   fridayNightOut: text("friday_night_out").notNull().default("false"),
+  fridayDisableMinHours: boolean("friday_disable_min_hours").notNull().default(false),
   fridayExpenseAmount: text("friday_expense_amount").notNull().default("0"),
   fridayExpenseReceipt: text("friday_expense_receipt").notNull().default(""),
   fridayDriverRating: integer("friday_driver_rating"), // Driver's rating of client (1-10)
@@ -268,6 +273,7 @@ export const timesheets = pgTable("timesheets", {
   saturdayTotal: text("saturday_total").notNull().default("0"),
   saturdayReview: text("saturday_review").notNull().default(""),
   saturdayNightOut: text("saturday_night_out").notNull().default("false"),
+  saturdayDisableMinHours: boolean("saturday_disable_min_hours").notNull().default(false),
   saturdayExpenseAmount: text("saturday_expense_amount").notNull().default("0"),
   saturdayExpenseReceipt: text("saturday_expense_receipt").notNull().default(""),
   saturdayDriverRating: integer("saturday_driver_rating"), // Driver's rating of client (1-10)
@@ -283,6 +289,7 @@ export const timesheets = pgTable("timesheets", {
   sundayTotal: text("sunday_total").notNull().default("0"),
   sundayReview: text("sunday_review").notNull().default(""),
   sundayNightOut: text("sunday_night_out").notNull().default("false"),
+  sundayDisableMinHours: boolean("sunday_disable_min_hours").notNull().default(false),
   sundayExpenseAmount: text("sunday_expense_amount").notNull().default("0"),
   sundayExpenseReceipt: text("sunday_expense_receipt").notNull().default(""),
   sundayDriverRating: integer("sunday_driver_rating"), // Driver's rating of client (1-10)
