@@ -36,16 +36,10 @@ export const TimesheetApprovalEmail = ({
             You have new timesheets waiting for your approval for the week starting on {weekStartDate}.
           </Text>
           <Section style={btnContainer}>
-            <Button style={button} href={approvalLink}>
+            <Button style={button} href='https://drivers.acceptrec.co.uk'>
               Review Timesheets
             </Button>
           </Section>
-          <Text style={text}>
-            Or copy and paste this link into your browser:
-          </Text>
-          <Link href={approvalLink} style={link}>
-            {approvalLink}
-          </Link>
           <Hr style={hr} />
           <Text style={footer}>
             Accept Recruitment Drivers Portal
