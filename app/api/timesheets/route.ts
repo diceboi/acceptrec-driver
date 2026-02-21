@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { timesheets, insertTimesheetSchema } from '@/shared/schema';
+import { timesheets, users, insertTimesheetSchema } from '@/shared/schema';
 import { createClient } from '@/lib/supabase/server';
 import { eq, desc, and, isNull } from 'drizzle-orm';
+import { writeAuditLog, auditUserName } from '@/lib/audit';
 
 export async function GET(req: Request) {
   const supabase = await createClient();
@@ -12,24 +13,36 @@ export async function GET(req: Request) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
-  // TODO: Fetch user role from DB if needed for authorization logic
-  // For now, assume if user is authenticated they can see their own timesheets
-  // If admin, they can see all.
-  
-  // Checking admin role from metadata for now (simplification)
   const role = user.user_metadata?.role || 'driver';
 
   try {
     if (role === 'admin' || role === 'super_admin') {
-      // Admin sees all timesheets (excluding deleted ones)
-      const allTimesheets = await db.select()
-        .from(timesheets)
-        .where(isNull(timesheets.deletedAt))
-        .orderBy(desc(timesheets.weekStartDate))
-        .limit(1000);
-      return NextResponse.json(allTimesheets);
+      const [allTimesheets, allUsers] = await Promise.all([
+        db.select()
+          .from(timesheets)
+          .where(isNull(timesheets.deletedAt))
+          .orderBy(desc(timesheets.weekStartDate))
+          .limit(1000),
+        db.select({
+          id: users.id,
+          firstName: users.firstName,
+          lastName: users.lastName,
+        }).from(users),
+      ]);
+
+      const userNameMap = new Map<string, string>();
+      for (const u of allUsers) {
+        const fullName = [u.firstName, u.lastName].filter(Boolean).join(' ').trim();
+        if (fullName) userNameMap.set(u.id, fullName);
+      }
+
+      const result = allTimesheets.map(ts => ({
+        ...ts,
+        driverName: userNameMap.get(ts.userId) ?? ts.driverName,
+      }));
+
+      return NextResponse.json(result);
     } else {
-      // Driver sees only their own (excluding deleted ones)
       const userTimesheets = await db.select()
         .from(timesheets)
         .where(and(
@@ -37,7 +50,7 @@ export async function GET(req: Request) {
           isNull(timesheets.deletedAt)
         ))
         .orderBy(desc(timesheets.weekStartDate));
-        
+
       return NextResponse.json(userTimesheets);
     }
   } catch (error) {
@@ -56,24 +69,30 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    
-    // Validate
     const validatedData = insertTimesheetSchema.parse(body);
-    
-    // Insert
-    // We should probably check for overlaps here like the original code did.
-    // For migration speed, I'll skip overlap check for now or add it as TODO.
-    
+
     const [newTimesheet] = await db.insert(timesheets).values({
       ...validatedData,
       userId: user.id,
     }).returning();
-    
+
+    await writeAuditLog({
+      userId: user.id,
+      userEmail: user.email ?? null,
+      userName: auditUserName(user),
+      action: 'create',
+      entityType: 'timesheet',
+      entityId: newTimesheet.id,
+      entityName: `${newTimesheet.driverName} – week ${newTimesheet.weekStartDate}`,
+      notes: 'Driver submitted a new timesheet',
+      req,
+    });
+
     return NextResponse.json(newTimesheet);
   } catch (error: any) {
     console.error('Error creating timesheet:', error);
     if (error.name === 'ZodError') {
-       return new NextResponse(JSON.stringify({ message: "Validation failed", errors: error.errors }), { status: 400 });
+      return new NextResponse(JSON.stringify({ message: "Validation failed", errors: error.errors }), { status: 400 });
     }
     return new NextResponse("Internal Server Error", { status: 500 });
   }

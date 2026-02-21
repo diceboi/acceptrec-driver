@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { rosters, rosterEntries, timesheets } from '@/shared/schema';
 import { createClient } from '@/lib/supabase/server';
 import { eq, and, isNull } from 'drizzle-orm';
+import { writeAuditLog, auditUserName } from '@/lib/audit';
 
 export async function GET(
   req: Request,
@@ -99,14 +100,28 @@ export async function DELETE(
   const { id } = await params;
 
   try {
-    // Soft delete
-    await db
+    const [before] = await db.select().from(rosters).where(eq(rosters.id, id));
+
+    const [deletedRoster] = await db
       .update(rosters)
       .set({
         deletedAt: new Date(),
         deletedBy: user.id,
       })
-      .where(eq(rosters.id, id));
+      .where(eq(rosters.id, id))
+      .returning();
+
+    await writeAuditLog({
+      userId: user.id,
+      userEmail: user.email ?? null,
+      userName: auditUserName(user),
+      action: 'delete',
+      entityType: 'roster',
+      entityId: id,
+      entityName: before?.fileName ?? id,
+      notes: 'Roster moved to deleted items',
+      req,
+    });
 
     return new NextResponse("Roster deleted", { status: 200 });
   } catch (error) {

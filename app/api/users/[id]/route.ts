@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
+import { writeAuditLog, auditUserName } from '@/lib/audit';
 
 const updateUserSchema = z.object({
   firstName: z.string().optional(),
@@ -31,15 +32,16 @@ export async function PATCH(
   if (role !== 'admin' && role !== 'super_admin') {
     return new NextResponse("Forbidden", { status: 403 });
   }
-  
+
   const { id: userId } = await params;
 
   try {
     const body = await req.json();
     const data = updateUserSchema.parse(body);
 
-    // 1. Update public.users
-    // We only update fields that exist in the public.users table
+    // Fetch current user state for change tracking
+    const [beforeUser] = await db.select().from(users).where(eq(users.id, userId));
+
     const dbUpdateData: any = {};
     if (data.firstName) dbUpdateData.firstName = data.firstName;
     if (data.lastName) dbUpdateData.lastName = data.lastName;
@@ -49,64 +51,52 @@ export async function PATCH(
 
     let updatedUser = null;
     if (Object.keys(dbUpdateData).length > 0) {
-        [updatedUser] = await db
+      [updatedUser] = await db
         .update(users)
         .set(dbUpdateData)
         .where(eq(users.id, userId))
         .returning();
     } else {
-        // If no DB fields changed (only password), fetch the current user to return it
-        [updatedUser] = await db.select().from(users).where(eq(users.id, userId));
+      [updatedUser] = await db.select().from(users).where(eq(users.id, userId));
     }
 
-    // 2. Update Supabase Auth Metadata and Password
     const supabaseAdmin = createAdminClient();
-    
-    // Construct auth update object
+
     const authUpdates: any = {};
-    
-    // Handle Password Update
+
     if (data.password) {
-        authUpdates.password = data.password;
+      authUpdates.password = data.password;
     }
 
-    // Handle Metadata Update
     const metadataUpdates: any = {};
     if (data.role) metadataUpdates.role = data.role;
     if (data.firstName || data.lastName) {
-        if (data.firstName) metadataUpdates.firstName = data.firstName;
-        if (data.lastName) metadataUpdates.lastName = data.lastName;
-        // Approximation for full_name
-        if (updatedUser) {
-             metadataUpdates.full_name = `${updatedUser.firstName} ${updatedUser.lastName}`;
-        }
+      if (data.firstName) metadataUpdates.firstName = data.firstName;
+      if (data.lastName) metadataUpdates.lastName = data.lastName;
+      if (updatedUser) {
+        metadataUpdates.full_name = `${updatedUser.firstName} ${updatedUser.lastName}`;
+      }
     }
     if (data.clientId !== undefined) metadataUpdates.clientId = data.clientId;
 
     if (Object.keys(metadataUpdates).length > 0) {
-        authUpdates.user_metadata = metadataUpdates;
+      authUpdates.user_metadata = metadataUpdates;
     }
 
     if (Object.keys(authUpdates).length > 0) {
-        const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(userId, authUpdates);
-        if (updateError) {
-             console.error("Auth update error:", updateError);
-             return new NextResponse("Failed to update user in Auth system", { status: 500 });
-        }
+      const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(userId, authUpdates);
+      if (updateError) {
+        console.error("Auth update error:", updateError);
+        return new NextResponse("Failed to update user in Auth system", { status: 500 });
+      }
     }
-    
-    // 3. Automatically create a contact if the user is/becomes a client with a company assigned
-    // This handles both cases:
-    // - Role changes to 'client' and user already has a clientId
-    // - ClientId is assigned and user is already a 'client'
+
     if (updatedUser) {
       const finalRole = updatedUser.role;
       const finalClientId = updatedUser.clientId;
 
-      // Check if this user should have a contact (is client with company)
       if (finalRole === 'client' && finalClientId) {
         try {
-          // Check if contact already exists with this email for this client
           const existingContact = await db.select()
             .from(clientContacts)
             .where(
@@ -117,40 +107,65 @@ export async function PATCH(
             )
             .limit(1);
 
-          // Only create contact if it doesn't exist yet
           if (existingContact.length === 0) {
             await db.insert(clientContacts).values({
               clientId: finalClientId,
               name: `${updatedUser.firstName} ${updatedUser.lastName}`,
               email: updatedUser.email,
               phone: updatedUser.phone || null,
-              isPrimary: 0, // Not primary by default
+              isPrimary: 0,
             });
-            console.log(`Auto-created contact for client user: ${updatedUser.email}`);
-          } else {
-            console.log(`Contact already exists for ${updatedUser.email} at client ${finalClientId}`);
           }
         } catch (contactError) {
-          // Log the error but don't fail the user update
           console.error('Error creating contact for client user:', contactError);
         }
       }
     }
-    
+
+    // Build audit changes
+    const changedFields: Record<string, { before: unknown; after: unknown }> = {};
+    const trackFields = ['firstName', 'lastName', 'role', 'clientId', 'phone'] as const;
+    for (const field of trackFields) {
+      if (data[field] !== undefined && beforeUser && beforeUser[field] !== (updatedUser as any)?.[field]) {
+        changedFields[field] = { before: (beforeUser as any)[field], after: (updatedUser as any)?.[field] };
+      }
+    }
+    if (data.password) changedFields['password'] = { before: '***', after: '*** (changed)' };
+
+    const isRoleChange = !!changedFields['role'];
+    const targetName = updatedUser
+      ? `${updatedUser.firstName} ${updatedUser.lastName} (${updatedUser.email})`
+      : userId;
+
+    await writeAuditLog({
+      userId: currentUser.id,
+      userEmail: currentUser.email ?? null,
+      userName: auditUserName(currentUser),
+      action: isRoleChange ? 'role_change' : 'update',
+      entityType: 'user',
+      entityId: userId,
+      entityName: targetName,
+      changes: Object.keys(changedFields).length > 0 ? changedFields : null,
+      notes: isRoleChange
+        ? `Role changed to ${data.role}`
+        : 'User profile updated by admin',
+      req,
+    });
+
     return NextResponse.json(updatedUser);
 
   } catch (error) {
     console.error('Error updating user:', error);
     if (error instanceof z.ZodError) {
-        return new NextResponse("Invalid input", { status: 400 });
+      return new NextResponse("Invalid input", { status: 400 });
     }
     return new NextResponse("Internal Server Error", { status: 500 });
   }
 }
 
 export async function DELETE(
-    req: Request,
-    { params }: { params: Promise<{ id: string }> }
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const supabase = await createClient();
   const { data: { user: currentUser } } = await supabase.auth.getUser();
@@ -159,22 +174,18 @@ export async function DELETE(
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
-  // Only Super Admin should ideally delete users, or at least Admin
   const role = currentUser.user_metadata?.role;
   if (role !== 'super_admin' && role !== 'admin') {
-      // In legacy code admin could delete? Let's check permissions.
-      // Assuming Admin can delete normal users.
     return new NextResponse("Forbidden", { status: 403 });
   }
 
   const { id: userId } = await params;
 
   if (userId === currentUser.id) {
-       return new NextResponse("Cannot delete yourself", { status: 400 });
+    return new NextResponse("Cannot delete yourself", { status: 400 });
   }
 
   try {
-    // Soft delete by setting deleted_at and deleted_by
     const [deletedUser] = await db
       .update(users)
       .set({
@@ -188,6 +199,18 @@ export async function DELETE(
       return new NextResponse("User not found", { status: 404 });
     }
 
+    await writeAuditLog({
+      userId: currentUser.id,
+      userEmail: currentUser.email ?? null,
+      userName: auditUserName(currentUser),
+      action: 'delete',
+      entityType: 'user',
+      entityId: deletedUser.id,
+      entityName: `${deletedUser.firstName} ${deletedUser.lastName} (${deletedUser.email})`,
+      notes: 'User moved to deleted items',
+      req,
+    });
+
     return new NextResponse("User deleted (moved to deleted items)", { status: 200 });
 
   } catch (error) {
@@ -195,4 +218,3 @@ export async function DELETE(
     return new NextResponse("Internal Server Error", { status: 500 });
   }
 }
-

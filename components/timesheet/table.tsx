@@ -24,6 +24,18 @@ import {
 import EditDialog from "./edit-dialog";
 import DeleteDialog from "./delete-dialog";
 
+/** If the stored driverName is an email address, format the username part into a readable name. */
+function formatDriverName(name: string): string {
+  if (!name.includes("@")) return name;
+  const username = name.split("@")[0];
+  // Replace separators (dots, underscores, hyphens, plus) with spaces, then title-case
+  return username
+    .split(/[._\-+]/)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
+}
+
+
 interface TimesheetTableProps {
   timesheets: Timesheet[];
   isLoading?: boolean;
@@ -200,7 +212,7 @@ export default function TimesheetTable({ timesheets, isLoading = false }: Timesh
                   <TableCell className="font-medium">
                     {format(parseISO(timesheet.weekStartDate), 'MMM d, yyyy')}
                   </TableCell>
-                  <TableCell className="font-medium">{timesheet.driverName}</TableCell>
+                  <TableCell className="font-medium">{formatDriverName(timesheet.driverName)}</TableCell>
                   <TableCell className="hidden md:table-cell">
                     <div className="flex flex-wrap gap-1">
                       {clients.length > 0 ? (

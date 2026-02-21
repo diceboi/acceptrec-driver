@@ -6,12 +6,74 @@ import { useQuery } from "@tanstack/react-query";
 import { Timesheet } from "@/shared/schema";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Clock, Plus, List, CheckCircle, XCircle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Clock, Plus, List, CheckCircle, XCircle, X } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
+import { cn } from "@/lib/utils";
+
+
+type FilterStatus = "pending_approval" | "approved" | "rejected" | "draft" | null;
 
 export default function TimesheetsPage() {
+  const searchParams = useSearchParams();
   const { data: timesheets = [], isLoading } = useQuery<Timesheet[]>({
     queryKey: ["/api/timesheets"],
   });
+
+  const initialFilter = (searchParams.get("filter") as FilterStatus) ?? null;
+  const [activeFilter, setActiveFilter] = useState<FilterStatus>(initialFilter);
+
+  // Sync filter if URL param changes (e.g. browser back/forward)
+  useEffect(() => {
+    setActiveFilter((searchParams.get("filter") as FilterStatus) ?? null);
+  }, [searchParams]);
+
+  const filteredTimesheets = activeFilter
+    ? timesheets.filter(t => t.approvalStatus === activeFilter)
+    : timesheets;
+
+  const toggleFilter = (status: FilterStatus) => {
+    setActiveFilter(prev => (prev === status ? null : status));
+  };
+
+  const filterCards = [
+    {
+      label: "Total Entries",
+      status: null as FilterStatus,
+      count: timesheets.length,
+      icon: <List className="h-4 w-4 text-muted-foreground" />,
+      activeClass: "ring-2 ring-primary",
+    },
+    {
+      label: "Pending Approval",
+      status: "pending_approval" as FilterStatus,
+      count: timesheets.filter(t => t.approvalStatus === "pending_approval").length,
+      icon: <Clock className="h-4 w-4 text-muted-foreground" />,
+      activeClass: "ring-2 ring-yellow-500",
+    },
+    {
+      label: "Approved",
+      status: "approved" as FilterStatus,
+      count: timesheets.filter(t => t.approvalStatus === "approved").length,
+      icon: <CheckCircle className="h-4 w-4 text-green-500" />,
+      activeClass: "ring-2 ring-green-500",
+    },
+    {
+      label: "Rejected",
+      status: "rejected" as FilterStatus,
+      count: timesheets.filter(t => t.approvalStatus === "rejected").length,
+      icon: <XCircle className="h-4 w-4 text-destructive" />,
+      activeClass: "ring-2 ring-destructive",
+    },
+    {
+      label: "Drafts",
+      status: "draft" as FilterStatus,
+      count: timesheets.filter(t => t.approvalStatus === "draft").length,
+      icon: <List className="h-4 w-4 text-muted-foreground" />,
+      activeClass: "ring-2 ring-primary",
+    },
+  ];
 
   return (
     <div className="container mx-auto py-8 max-w-7xl">
@@ -36,67 +98,51 @@ export default function TimesheetsPage() {
 
         <TabsContent value="list" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Total Entries
-                </CardTitle>
-                <List className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{timesheets.length}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Pending Approval
-                </CardTitle>
-                <Clock className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {timesheets.filter(t => t.approvalStatus === 'pending_approval').length}
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Approved
-                </CardTitle>
-                <CheckCircle className="h-4 w-4 text-green-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {timesheets.filter(t => t.approvalStatus === 'approved').length}
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Rejected
-                </CardTitle>
-                <XCircle className="h-4 w-4 text-destructive" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {timesheets.filter(t => t.approvalStatus === 'rejected').length}
-                </div>
-              </CardContent>
-            </Card>
+            {filterCards.map((card) => (
+              <Card
+                key={card.label}
+                onClick={() => toggleFilter(card.status)}
+                className={cn(
+                  "cursor-pointer transition-all hover:shadow-md hover:bg-accent/40",
+                  activeFilter === card.status && card.status !== null && card.activeClass,
+                )}
+                data-testid={`filter-card-${card.label.toLowerCase().replace(/\s+/g, "-")}`}
+              >
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">{card.label}</CardTitle>
+                  {card.icon}
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{card.count}</div>
+                  {activeFilter === card.status && card.status !== null && (
+                    <p className="text-xs text-muted-foreground mt-1">Click to clear filter</p>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
           </div>
 
           <Card>
-            <CardHeader>
-              <CardTitle>Timesheet History</CardTitle>
-              <CardDescription>
-                View and manage your past submissions
-              </CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Timesheet History</CardTitle>
+                <CardDescription>
+                  View and manage your past submissions
+                </CardDescription>
+              </div>
+              {activeFilter && (
+                <Badge
+                  variant="secondary"
+                  className="gap-1 cursor-pointer"
+                  onClick={() => setActiveFilter(null)}
+                >
+                  <X className="w-3 h-3" />
+                  {filterCards.find(c => c.status === activeFilter)?.label}
+                </Badge>
+              )}
             </CardHeader>
             <CardContent>
-              <TimesheetTable timesheets={timesheets} isLoading={isLoading} />
+              <TimesheetTable timesheets={filteredTimesheets} isLoading={isLoading} />
             </CardContent>
           </Card>
         </TabsContent>

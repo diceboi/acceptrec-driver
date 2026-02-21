@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { users } from '@/shared/schema';
 import { createClient } from '@/lib/supabase/server';
 import { eq } from 'drizzle-orm';
+import { writeAuditLog, auditUserName } from '@/lib/audit';
 
 export async function GET() {
   const supabase = await createClient();
@@ -50,7 +51,7 @@ export async function PATCH(req: Request) {
     const { phone, firstName, lastName } = body;
 
     const updateData: any = { updatedAt: new Date() };
-    
+
     if (phone !== undefined) updateData.phone = phone;
     if (firstName !== undefined) updateData.firstName = firstName;
     if (lastName !== undefined) updateData.lastName = lastName;
@@ -74,6 +75,18 @@ export async function PATCH(req: Request) {
         last_name: updated.lastName,
         phone: updated.phone,
       }
+    });
+
+    await writeAuditLog({
+      userId: user.id,
+      userEmail: user.email ?? null,
+      userName: auditUserName(user),
+      action: 'profile_update',
+      entityType: 'user',
+      entityId: user.id,
+      entityName: `${updated.firstName} ${updated.lastName} (${updated.email})`,
+      notes: 'User updated their own profile',
+      req,
     });
 
     return NextResponse.json(updated);

@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { eq, desc, and } from 'drizzle-orm';
 import { z } from 'zod';
+import { writeAuditLog, auditUserName } from '@/lib/audit';
 
 const createUserSchema = z.object({
   email: z.string().email(),
@@ -48,7 +49,6 @@ export async function POST(req: Request) {
   }
 
   const role = currentUser.user_metadata?.role;
-  // Only admins can create users
   if (role !== 'admin' && role !== 'super_admin') {
     return new NextResponse("Forbidden", { status: 403 });
   }
@@ -59,11 +59,10 @@ export async function POST(req: Request) {
 
     const supabaseAdmin = createAdminClient();
 
-    // 1. Create user in Supabase Auth
     const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email: data.email,
       password: data.password,
-      email_confirm: true, // Auto confirm
+      email_confirm: true,
       user_metadata: {
         role: data.role,
         full_name: `${data.firstName} ${data.lastName}`,
@@ -79,38 +78,30 @@ export async function POST(req: Request) {
     }
 
     if (!authUser.user) {
-        return new NextResponse("Failed to create user in Auth system", { status: 500 });
+      return new NextResponse("Failed to create user in Auth system", { status: 500 });
     }
 
-    // 2. Sync with public.users table
-    // We use onConflict do update to ensure we don't fail if a trigger already inserted it
-    // But basic insert is better if we assume no trigger or we want to ensure fields are set
-    // Let's check if it exists first? No, insert on conflict is best.
-    // Drizzle: .onConflictDoUpdate({ target: users.id, set: { ... } })
-    
     const [dbUser] = await db.insert(users).values({
-        id: authUser.user.id,
-        email: data.email,
+      id: authUser.user.id,
+      email: data.email,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      role: data.role,
+      clientId: data.clientId,
+      phone: data.phone,
+    }).onConflictDoUpdate({
+      target: users.id,
+      set: {
         firstName: data.firstName,
         lastName: data.lastName,
         role: data.role,
         clientId: data.clientId,
         phone: data.phone,
-    }).onConflictDoUpdate({
-        target: users.id,
-        set: {
-             firstName: data.firstName,
-             lastName: data.lastName,
-             role: data.role,
-             clientId: data.clientId,
-             phone: data.phone,
-        }
+      }
     }).returning();
 
-    // 3. Automatically create a contact if the user is a client with a company assigned
     if (data.role === 'client' && data.clientId) {
       try {
-        // Check if contact already exists with this email for this client
         const existingContact = await db.select()
           .from(clientContacts)
           .where(
@@ -121,31 +112,39 @@ export async function POST(req: Request) {
           )
           .limit(1);
 
-        // Only create contact if it doesn't exist yet
         if (existingContact.length === 0) {
           await db.insert(clientContacts).values({
             clientId: data.clientId,
             name: `${data.firstName} ${data.lastName}`,
             email: data.email,
             phone: data.phone || null,
-            isPrimary: 0, // Not primary by default
+            isPrimary: 0,
           });
-          console.log(`Auto-created contact for client user: ${data.email}`);
-        } else {
-          console.log(`Contact already exists for ${data.email} at client ${data.clientId}`);
         }
       } catch (contactError) {
-        // Log the error but don't fail the user creation
         console.error('Error creating contact for client user:', contactError);
       }
     }
+
+    await writeAuditLog({
+      userId: currentUser.id,
+      userEmail: currentUser.email ?? null,
+      userName: auditUserName(currentUser),
+      action: 'create',
+      entityType: 'user',
+      entityId: dbUser.id,
+      entityName: `${data.firstName} ${data.lastName} (${data.email})`,
+      changes: { role: data.role },
+      notes: `New ${data.role} account created by admin`,
+      req,
+    });
 
     return NextResponse.json(dbUser);
 
   } catch (error) {
     console.error('Error creating user:', error);
-     if (error instanceof z.ZodError) {
-        return new NextResponse("Invalid input", { status: 400 });
+    if (error instanceof z.ZodError) {
+      return new NextResponse("Invalid input", { status: 400 });
     }
     return new NextResponse("Internal Server Error", { status: 500 });
   }

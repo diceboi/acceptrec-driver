@@ -41,7 +41,7 @@ export default async function DashboardPage() {
             parseFloat(timesheet.sundayTotal || "0"),
         ].reduce((sum, hours) => sum + hours, 0);
     };
-    
+
     // Get clients helper
     const getClients = (timesheet: Timesheet): string[] => {
         const clients = [
@@ -64,11 +64,11 @@ export default async function DashboardPage() {
                     <h1 className="text-3xl font-semibold tracking-tight">Client Dashboard</h1>
                     <p className="text-muted-foreground">Review and approve driver timesheets for your company</p>
                 </div>
-                 <Card>
+                <Card>
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
-                             <Building2 className="w-5 h-5" />
-                             Welcome to the Client Portal
+                            <Building2 className="w-5 h-5" />
+                            Welcome to the Client Portal
                         </CardTitle>
                         <CardDescription>
                             As a client user, you can review and approve driver timesheets submitted for your company.
@@ -110,7 +110,7 @@ export default async function DashboardPage() {
             // Approximate "approved this week" by checking updated_at or similar if clientApprovedAt isn't queryable easily as date range in string column
             // For now, we'll fetch approved records and filter in JS if needed, OR just count total approved for speed.
             // Let's rely on standard count for now to avoid the heavy JS processing.
-             db.select({ count: count() }).from(timesheets).where(eq(timesheets.approvalStatus, 'approved')), 
+            db.select({ count: count() }).from(timesheets).where(eq(timesheets.approvalStatus, 'approved')),
             db.select().from(timesheets).orderBy(desc(timesheets.weekStartDate)).limit(5),
             db.select().from(approvalBatches).orderBy(desc(approvalBatches.createdAt)).limit(5)
         ]);
@@ -122,62 +122,62 @@ export default async function DashboardPage() {
 
 
         return (
-             <div className="space-y-8">
+            <div className="space-y-8">
                 <div>
                     <h1 className="text-3xl font-semibold tracking-tight">Admin Dashboard</h1>
                     <p className="text-muted-foreground">Manage timesheets and client approvals</p>
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                    <StatsCard title="Pending Approval" value={pendingApprovalCount.toString()} icon={Clock} />
-                    <StatsCard title="Approved This Week" value={approvedThisWeekCount.toString()} icon={CheckCircle} />
-                    <StatsCard title="Rejected" value={rejectedCount.toString()} icon={XCircle} />
-                    <StatsCard title="Drafts" value={draftCount.toString()} icon={ClipboardList} />
+                    <StatsCard title="Pending Approval" value={pendingApprovalCount.toString()} icon={Clock} href="/timesheets?filter=pending_approval" />
+                    <StatsCard title="Approved" value={approvedThisWeekCount.toString()} icon={CheckCircle} href="/timesheets?filter=approved" />
+                    <StatsCard title="Rejected" value={rejectedCount.toString()} icon={XCircle} href="/timesheets?filter=rejected" />
+                    <StatsCard title="Drafts" value={draftCount.toString()} icon={ClipboardList} href="/timesheets?filter=draft" />
                 </div>
 
                 <div className="space-y-4">
                     <h2 className="text-lg font-semibold">Quick Actions</h2>
-                     <div className="grid gap-4 md:grid-cols-3">
+                    <div className="grid gap-4 md:grid-cols-3">
                         <Link href="/client-approvals">
-                             <Card className="hover:bg-accent/50 cursor-pointer transition-colors">
+                            <Card className="hover:bg-accent/50 cursor-pointer transition-colors">
                                 <CardContent className="p-6 flex items-center gap-4">
-                                     <div className="w-12 h-12 rounded-md bg-primary/10 flex items-center justify-center">
-                                         <CheckCircle className="w-6 h-6 text-primary" />
-                                     </div>
-                                     <div>
-                                         <p className="font-semibold">Create Approval Batch</p>
-                                         <p className="text-sm text-muted-foreground">Send timesheets to clients</p>
-                                     </div>
+                                    <div className="w-12 h-12 rounded-md bg-primary/10 flex items-center justify-center">
+                                        <CheckCircle className="w-6 h-6 text-primary" />
+                                    </div>
+                                    <div>
+                                        <p className="font-semibold">Create Approval Batch</p>
+                                        <p className="text-sm text-muted-foreground">Send timesheets to clients</p>
+                                    </div>
                                 </CardContent>
-                             </Card>
+                            </Card>
                         </Link>
-                         <Link href="/client-management">
-                             <Card className="hover:bg-accent/50 cursor-pointer transition-colors">
+                        <Link href="/client-management">
+                            <Card className="hover:bg-accent/50 cursor-pointer transition-colors">
                                 <CardContent className="p-6 flex items-center gap-4">
-                                     <div className="w-12 h-12 rounded-md bg-primary/10 flex items-center justify-center">
-                                         <Building2 className="w-6 h-6 text-primary" />
-                                     </div>
-                                     <div>
-                                         <p className="font-semibold">Manage Clients</p>
-                                         <p className="text-sm text-muted-foreground">Add or update client info</p>
-                                     </div>
+                                    <div className="w-12 h-12 rounded-md bg-primary/10 flex items-center justify-center">
+                                        <Building2 className="w-6 h-6 text-primary" />
+                                    </div>
+                                    <div>
+                                        <p className="font-semibold">Manage Clients</p>
+                                        <p className="text-sm text-muted-foreground">Add or update client info</p>
+                                    </div>
                                 </CardContent>
-                             </Card>
+                            </Card>
                         </Link>
-                         <Link href="/payroll">
-                             <Card className="hover:bg-accent/50 cursor-pointer transition-colors">
+                        <Link href="/payroll">
+                            <Card className="hover:bg-accent/50 cursor-pointer transition-colors">
                                 <CardContent className="p-6 flex items-center gap-4">
-                                     <div className="w-12 h-12 rounded-md bg-primary/10 flex items-center justify-center">
-                                         <DollarSign className="w-6 h-6 text-primary" />
-                                     </div>
-                                     <div>
-                                         <p className="font-semibold">View Payroll</p>
-                                         <p className="text-sm text-muted-foreground">Export approved timesheets</p>
-                                     </div>
+                                    <div className="w-12 h-12 rounded-md bg-primary/10 flex items-center justify-center">
+                                        <DollarSign className="w-6 h-6 text-primary" />
+                                    </div>
+                                    <div>
+                                        <p className="font-semibold">View Payroll</p>
+                                        <p className="text-sm text-muted-foreground">Export approved timesheets</p>
+                                    </div>
                                 </CardContent>
-                             </Card>
+                            </Card>
                         </Link>
-                     </div>
+                    </div>
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
@@ -194,30 +194,30 @@ export default async function DashboardPage() {
                                 </div>
                             ) : (
                                 <div className="space-y-4">
-                                     {allBatches.map((batch) => (
+                                    {allBatches.map((batch) => (
                                         <div key={batch.id} className="border-l-2 border-primary pl-4">
                                             <div className="flex justify-between items-start mb-1">
                                                 <div>
                                                     <p className="font-medium text-sm">{batch.clientName}</p>
-                                                     <p className="text-xs text-muted-foreground">
+                                                    <p className="text-xs text-muted-foreground">
                                                         {batch.createdAt ? format(new Date(batch.createdAt), 'MMM d, yyyy h:mm a') : 'N/A'}
                                                     </p>
                                                 </div>
-                                                 <Badge variant={batch.status === 'approved' ? 'default' : batch.status === 'rejected' ? 'destructive' : 'secondary'}>
+                                                <Badge variant={batch.status === 'approved' ? 'default' : batch.status === 'rejected' ? 'destructive' : 'secondary'}>
                                                     {batch.status}
                                                 </Badge>
                                             </div>
-                                             <p className="text-xs text-muted-foreground mt-1">
+                                            <p className="text-xs text-muted-foreground mt-1">
                                                 Week of {format(parseISO(batch.weekStartDate), 'MMM d, yyyy')}
                                             </p>
                                         </div>
-                                     ))}
+                                    ))}
                                 </div>
                             )}
                         </CardContent>
                     </Card>
 
-                     <Card>
+                    <Card>
                         <CardHeader>
                             <CardTitle>Recent Timesheet Submissions</CardTitle>
                             <CardDescription>Latest driver submissions</CardDescription>
@@ -235,22 +235,22 @@ export default async function DashboardPage() {
                                         const totalHours = getTotalHours(entry);
                                         return (
                                             <div key={entry.id} className="border-l-2 border-primary pl-4">
-                                                 <div className="flex justify-between items-start mb-1">
-                                                     <div className="flex-1">
-                                                         <p className="font-medium text-sm">{entry.driverName}</p>
-                                                          <p className="text-xs text-muted-foreground">
+                                                <div className="flex justify-between items-start mb-1">
+                                                    <div className="flex-1">
+                                                        <p className="font-medium text-sm">{entry.driverName}</p>
+                                                        <p className="text-xs text-muted-foreground">
                                                             Week of {format(parseISO(entry.weekStartDate), 'MMM d, yyyy')}
-                                                          </p>
-                                                     </div>
-                                                      <div className="text-right">
-                                                          <p className="text-sm font-semibold text-primary">{totalHours.toFixed(2)}h</p>
-                                                      </div>
-                                                 </div>
-                                                 {clients.length > 0 && (
+                                                        </p>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className="text-sm font-semibold text-primary">{totalHours.toFixed(2)}h</p>
+                                                    </div>
+                                                </div>
+                                                {clients.length > 0 && (
                                                     <p className="text-xs text-muted-foreground mt-1">
                                                         {clients.join(", ")}
                                                     </p>
-                                                 )}
+                                                )}
                                             </div>
                                         );
                                     })}
@@ -259,27 +259,27 @@ export default async function DashboardPage() {
                         </CardContent>
                     </Card>
                 </div>
-             </div>
+            </div>
         );
     }
 
     // Driver View
     // Fetch Only Own Data
     const myTimesheets = await db.select().from(timesheets).where(eq(timesheets.userId, user.id)).orderBy(desc(timesheets.weekStartDate));
-    
+
     // Stats
     const weekHours = myTimesheets.filter(t => {
-         try {
+        try {
             const date = parseISO(t.weekStartDate);
             return isWithinInterval(date, { start: weekStart, end: weekEnd });
-          } catch { return false; }
+        } catch { return false; }
     }).reduce((sum, t) => sum + getTotalHours(t), 0);
 
     const monthHours = myTimesheets.filter(t => {
-         try {
+        try {
             const date = parseISO(t.weekStartDate);
             return isWithinInterval(date, { start: monthStart, end: monthEnd });
-          } catch { return false; }
+        } catch { return false; }
     }).reduce((sum, t) => sum + getTotalHours(t), 0);
 
     const totalHours = myTimesheets.reduce((sum, t) => sum + getTotalHours(t), 0);
@@ -288,13 +288,13 @@ export default async function DashboardPage() {
     return (
         <div className="space-y-8">
             <div>
-                 <h1 className="text-3xl font-semibold tracking-tight">Driver Dashboard</h1>
+                <h1 className="text-3xl font-semibold tracking-tight">Driver Dashboard</h1>
                 <p className="text-muted-foreground">
                     Welcome back, {user.user_metadata?.full_name || user.email?.split('@')[0]}!
                 </p>
             </div>
 
-             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <StatsCard title="This Week" value={weekHours.toFixed(2) + "h"} icon={Clock} />
                 <StatsCard title="This Month" value={monthHours.toFixed(2) + "h"} icon={Calendar} />
                 <StatsCard title="Total Hours" value={totalHours.toFixed(2) + "h"} icon={TrendingUp} />
@@ -302,54 +302,54 @@ export default async function DashboardPage() {
             </div>
 
             <div className="grid gap-8 lg:grid-cols-3">
-                 <div className="lg:col-span-2">
-                     <Card>
+                <div className="lg:col-span-2">
+                    <Card>
                         <CardHeader>
                             <CardTitle>Submit Weekly Timesheet</CardTitle>
-                             <CardDescription>
+                            <CardDescription>
                                 Create a new timesheet or edit drafts
-                             </CardDescription>
+                            </CardDescription>
                         </CardHeader>
                         <CardContent>
-                             <div className="flex flex-col gap-4 items-center justify-center py-8 border-2 border-dashed rounded-lg">
-                                  <p className="text-muted-foreground mb-4">Click below to start a new timesheet</p>
-                                  <Link href="/timesheets">
-                                      <Button size="lg" className="gap-2">
-                                          <TrendingUp className="w-5 h-5" />
-                                          Go to Timesheets
-                                      </Button>
-                                  </Link>
-                             </div>
+                            <div className="flex flex-col gap-4 items-center justify-center py-8 border-2 border-dashed rounded-lg">
+                                <p className="text-muted-foreground mb-4">Click below to start a new timesheet</p>
+                                <Link href="/timesheets">
+                                    <Button size="lg" className="gap-2">
+                                        <TrendingUp className="w-5 h-5" />
+                                        Go to Timesheets
+                                    </Button>
+                                </Link>
+                            </div>
                         </CardContent>
-                     </Card>
-                 </div>
+                    </Card>
+                </div>
 
-                 <div>
-                      <Card>
+                <div>
+                    <Card>
                         <CardHeader>
                             <CardTitle>Recent Weeks</CardTitle>
                         </CardHeader>
                         <CardContent>
-                             {recentMyEntries.length === 0 ? (
+                            {recentMyEntries.length === 0 ? (
                                 <p className="text-sm text-muted-foreground text-center py-4">No timesheets yet</p>
-                             ) : (
-                                 <div className="space-y-4">
-                                     {recentMyEntries.map((entry) => (
-                                         <div key={entry.id} className="flex justify-between items-center border-b pb-2 last:border-0 last:pb-0">
-                                             <div>
-                                                 <p className="font-medium text-sm">Week of {format(parseISO(entry.weekStartDate), 'MMM d')}</p>
-                                                 <Badge variant="outline" className="text-xs mt-1">{entry.approvalStatus}</Badge>
-                                             </div>
-                                             <div className="text-right">
-                                                  <span className="font-bold text-primary">{getTotalHours(entry).toFixed(1)}h</span>
-                                             </div>
-                                         </div>
-                                     ))}
-                                 </div>
-                             )}
+                            ) : (
+                                <div className="space-y-4">
+                                    {recentMyEntries.map((entry) => (
+                                        <div key={entry.id} className="flex justify-between items-center border-b pb-2 last:border-0 last:pb-0">
+                                            <div>
+                                                <p className="font-medium text-sm">Week of {format(parseISO(entry.weekStartDate), 'MMM d')}</p>
+                                                <Badge variant="outline" className="text-xs mt-1">{entry.approvalStatus}</Badge>
+                                            </div>
+                                            <div className="text-right">
+                                                <span className="font-bold text-primary">{getTotalHours(entry).toFixed(1)}h</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </CardContent>
-                      </Card>
-                 </div>
+                    </Card>
+                </div>
             </div>
         </div>
     );
