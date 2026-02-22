@@ -4,7 +4,8 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Users, Shield, UserCog, Phone, Edit2, Trash2, Crown, Building2, Plus, Mail, Lock } from "lucide-react";
+import { Users, Shield, UserCog, Phone, Edit2, Trash2, Crown, Building2, Plus, Mail, Lock, Search } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -76,13 +77,13 @@ interface Client {
 export default function UserManagementPage() {
   const { user: currentUser } = useAuth();
   const queryClient = useQueryClient();
-  
+
   // States for Edit Dialogs
   const [editingPhone, setEditingPhone] = useState<{ userId: string; phone: string } | null>(null);
   const [phoneDialogOpen, setPhoneDialogOpen] = useState(false);
   const [editingName, setEditingName] = useState<{ userId: string; firstName: string; lastName: string } | null>(null);
   const [nameDialogOpen, setNameDialogOpen] = useState(false);
-  
+
   // States for Create Dialog
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newUser, setNewUser] = useState({
@@ -94,18 +95,33 @@ export default function UserManagementPage() {
     clientId: "",
     phone: ""
   });
-  
+
   // State for Password Dialog
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [changingPassword, setChangingPassword] = useState<{ userId: string; name: string } | null>(null);
   const [newPassword, setNewPassword] = useState("");
-  
+
   // State for Delete Dialog
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletingUser, setDeletingUser] = useState<{ userId: string; userName: string } | null>(null);
 
+  // Search
+  const [searchQuery, setSearchQuery] = useState("");
+
+
   const { data: users, isLoading } = useQuery<User[]>({
     queryKey: ["/api/users"],
+  });
+
+  const filteredUsers = (users ?? []).filter((u) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      `${u.firstName} ${u.lastName}`.toLowerCase().includes(q) ||
+      u.email.toLowerCase().includes(q) ||
+      (u.phone ?? "").toLowerCase().includes(q) ||
+      u.role.toLowerCase().includes(q)
+    );
   });
 
   const { data: clients } = useQuery<Client[]>({
@@ -214,7 +230,7 @@ export default function UserManagementPage() {
         password: newPassword
       });
     } else {
-        toast.error("Password must be at least 8 characters");
+      toast.error("Password must be at least 8 characters");
     }
   };
 
@@ -241,9 +257,9 @@ export default function UserManagementPage() {
     if (editingName && editingName.firstName.trim() && editingName.lastName.trim()) {
       updateUserMutation.mutate({
         userId: editingName.userId,
-        data: { 
-            firstName: editingName.firstName.trim(),
-            lastName: editingName.lastName.trim()
+        data: {
+          firstName: editingName.firstName.trim(),
+          lastName: editingName.lastName.trim()
         },
       });
     }
@@ -251,8 +267,8 @@ export default function UserManagementPage() {
 
   const handleCreateUser = () => {
     if (!newUser.email || !newUser.password || !newUser.firstName || !newUser.lastName) {
-       toast.error("Please fill in all required fields");
-       return;
+      toast.error("Please fill in all required fields");
+      return;
     }
     createUserMutation.mutate(newUser);
   };
@@ -321,7 +337,7 @@ export default function UserManagementPage() {
   };
 
   return (
-    <div className="container mx-auto p-6 max-w-6xl">
+    <div className="container mx-auto p-6 max-w-full">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2" data-testid="heading-user-management">
@@ -340,107 +356,107 @@ export default function UserManagementPage() {
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-lg">
-             <DialogHeader>
-                <DialogTitle>Add New User</DialogTitle>
-                <DialogDescription>Create a new user account with Supabase credentials</DialogDescription>
-             </DialogHeader>
-             <div className="space-y-4 py-2">
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                        <Label>First Name *</Label>
-                        <Input 
-                            value={newUser.firstName} 
-                            onChange={e => setNewUser({...newUser, firstName: e.target.value})}
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label>Last Name *</Label>
-                        <Input 
-                            value={newUser.lastName} 
-                            onChange={e => setNewUser({...newUser, lastName: e.target.value})}
-                        />
-                    </div>
+            <DialogHeader>
+              <DialogTitle>Add New User</DialogTitle>
+              <DialogDescription>Create a new user account with Supabase credentials</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>First Name *</Label>
+                  <Input
+                    value={newUser.firstName}
+                    onChange={e => setNewUser({ ...newUser, firstName: e.target.value })}
+                  />
                 </div>
                 <div className="space-y-2">
-                    <Label>Email *</Label>
-                    <div className="relative">
-                        <Mail className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                        <Input 
-                            type="email" 
-                            className="pl-9"
-                            value={newUser.email} 
-                            onChange={e => setNewUser({...newUser, email: e.target.value})}
-                        />
-                    </div>
+                  <Label>Last Name *</Label>
+                  <Input
+                    value={newUser.lastName}
+                    onChange={e => setNewUser({ ...newUser, lastName: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Email *</Label>
+                <div className="relative">
+                  <Mail className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="email"
+                    className="pl-9"
+                    value={newUser.email}
+                    onChange={e => setNewUser({ ...newUser, email: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Password *</Label>
+                <div className="relative">
+                  <Lock className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="password"
+                    className="pl-9"
+                    placeholder="Min 8 characters"
+                    value={newUser.password}
+                    onChange={e => setNewUser({ ...newUser, password: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Role *</Label>
+                  <Select
+                    value={newUser.role}
+                    onValueChange={val => setNewUser({ ...newUser, role: val })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="driver">Driver</SelectItem>
+                      <SelectItem value="client">Client</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                      {currentRole === 'super_admin' && (
+                        <SelectItem value="super_admin">Super Admin</SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
-                    <Label>Password *</Label>
-                    <div className="relative">
-                        <Lock className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                        <Input 
-                            type="password" 
-                            className="pl-9"
-                            placeholder="Min 8 characters"
-                            value={newUser.password} 
-                            onChange={e => setNewUser({...newUser, password: e.target.value})}
-                        />
-                    </div>
+                  <Label>Phone</Label>
+                  <Input
+                    value={newUser.phone}
+                    onChange={e => setNewUser({ ...newUser, phone: e.target.value })}
+                  />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                        <Label>Role *</Label>
-                         <Select 
-                            value={newUser.role} 
-                            onValueChange={val => setNewUser({...newUser, role: val})}
-                         >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="driver">Driver</SelectItem>
-                            <SelectItem value="client">Client</SelectItem>
-                            <SelectItem value="admin">Admin</SelectItem>
-                             {currentRole === 'super_admin' && (
-                                <SelectItem value="super_admin">Super Admin</SelectItem>
-                             )}
-                          </SelectContent>
-                        </Select>
-                    </div>
-                     <div className="space-y-2">
-                        <Label>Phone</Label>
-                        <Input 
-                            value={newUser.phone} 
-                            onChange={e => setNewUser({...newUser, phone: e.target.value})}
-                        />
-                    </div>
+              </div>
+              {newUser.role === 'client' && (
+                <div className="space-y-2">
+                  <Label>Linked Company</Label>
+                  <Select
+                    value={newUser.clientId}
+                    onValueChange={val => setNewUser({ ...newUser, clientId: val })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select company" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clients?.map((client) => (
+                        <SelectItem key={client.id} value={client.id}>
+                          {client.companyName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                {newUser.role === 'client' && (
-                    <div className="space-y-2">
-                        <Label>Linked Company</Label>
-                         <Select 
-                            value={newUser.clientId} 
-                            onValueChange={val => setNewUser({...newUser, clientId: val})}
-                         >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select company" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {clients?.map((client) => (
-                              <SelectItem key={client.id} value={client.id}>
-                                {client.companyName}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                    </div>
-                )}
-             </div>
-             <DialogFooter>
-                <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
-                <Button onClick={handleCreateUser} disabled={createUserMutation.isPending}>
-                    {createUserMutation.isPending ? "Creating..." : "Create User"}
-                </Button>
-             </DialogFooter>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
+              <Button onClick={handleCreateUser} disabled={createUserMutation.isPending}>
+                {createUserMutation.isPending ? "Creating..." : "Create User"}
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
@@ -448,203 +464,231 @@ export default function UserManagementPage() {
       {isLoading ? (
         <Card>
           <CardContent className="p-6 text-center space-y-4">
-             <Skeleton className="h-12 w-full" />
-             <Skeleton className="h-12 w-full" />
-             <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
           </CardContent>
         </Card>
       ) : users && users.length > 0 ? (
         <Card>
           <CardHeader>
-            <CardTitle>All Users</CardTitle>
-            <CardDescription>
-              {users.length} {users.length === 1 ? "user" : "users"} registered
-            </CardDescription>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <CardTitle>All Users</CardTitle>
+                <CardDescription>
+                  {searchQuery
+                    ? `${filteredUsers.length} of ${users?.length ?? 0} users`
+                    : `${users?.length ?? 0} ${users?.length === 1 ? "user" : "users"} registered`}
+                </CardDescription>
+              </div>
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Search by name, email, role…"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 pl-9 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <TooltipProvider>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>User</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Company</TableHead>
-                  <TableHead>Joined</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {users.map((user) => (
-                  <TableRow key={user.id} data-testid={`row-user-${user.id}`}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar>
-                          <AvatarImage src={user.profileImageUrl} />
-                          <AvatarFallback>
-                            {getInitials(user.firstName, user.lastName)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium" data-testid={`text-name-${user.id}`}>
-                            {user.firstName && user.lastName ? (
-                              `${user.firstName} ${user.lastName}`
-                            ) : (
-                              <span className="text-muted-foreground italic">No name set</span>
-                            )}
-                          </p>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => handleNameEdit(user.id, user.firstName, user.lastName)}
-                            data-testid={`button-edit-name-${user.id}`}
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell data-testid={`text-email-${user.id}`}>
-                      {user.email}
-                    </TableCell>
-                    <TableCell data-testid={`text-phone-${user.id}`}>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm">
-                          {user.phone || <span className="text-muted-foreground">—</span>}
-                        </span>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => handlePhoneEdit(user.id, user.phone)}
-                          data-testid={`button-edit-phone-${user.id}`}
-                        >
-                          <Phone className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                    <TableCell data-testid={`badge-role-${user.id}`}>
-                      {getRoleBadge(user.role)}
-                    </TableCell>
-                    <TableCell data-testid={`cell-company-${user.id}`}>
-                      {user.role === 'client' ? (
-                        <Select
-                          value={user.clientId || ""}
-                          onValueChange={(value) => handleClientChange(user.id, value || null)}
-                          disabled={updateUserMutation.isPending || !canModifyUser(user)}
-                        >
-                          <SelectTrigger className="w-40" data-testid={`select-company-${user.id}`}>
-                            <SelectValue placeholder="Select company..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {clients?.map((client) => (
-                              <SelectItem key={client.id} value={client.id}>
-                                {client.companyName}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {format(new Date(user.createdAt), "MMM d, yyyy")}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        {!canModifyUser(user) ? (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <div className="inline-block">
-                                <Select
-                                  value={user.role}
-                                  disabled={true}
-                                >
-                                  <SelectTrigger 
-                                    className="w-36"
-                                    data-testid={`select-role-${user.id}`}
-                                  >
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                </Select>
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>
-                                {user.id === currentUser?.id 
-                                  ? "You cannot change your own role"
-                                  : user.role === 'super_admin' && currentRole !== 'super_admin'
-                                  ? "Only super admins can modify super admin roles"
-                                  : "Cannot modify this user."}
-                              </p>
-                            </TooltipContent>
-                          </Tooltip>
-                        ) : (
-                          <Select
-                            value={user.role}
-                            onValueChange={(value) => handleRoleChange(user.id, value)}
-                            disabled={updateUserMutation.isPending}
-                          >
-                            <SelectTrigger 
-                              className="w-36"
-                              data-testid={`select-role-${user.id}`}
-                            >
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="driver">Driver</SelectItem>
-                              <SelectItem value="client">Client</SelectItem>
-                              <SelectItem value="admin">Admin</SelectItem>
-                              {currentRole === 'super_admin' && (
-                                <SelectItem value="super_admin">Super Admin</SelectItem>
-                              )}
-                            </SelectContent>
-                          </Select>
-                        )}
-                        
-                        {/* Change Password Button */}
-                        {canModifyUser(user) && (
-                            <Tooltip>
-                            <TooltipTrigger asChild>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>User</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Company</TableHead>
+                    <TableHead>Joined</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredUsers.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                        No users match your search
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredUsers.map((user) => (
+                      <TableRow key={user.id} data-testid={`row-user-${user.id}`}>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <Avatar className="shrink-0">
+                              <AvatarImage src={user.profileImageUrl} />
+                              <AvatarFallback>
+                                {getInitials(user.firstName, user.lastName)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0">
+                              {/* Name row */}
+                              <div className="flex items-center gap-1">
+                                <p className="font-medium truncate" data-testid={`text-name-${user.id}`}>
+                                  {user.firstName && user.lastName ? (
+                                    `${user.firstName} ${user.lastName}`
+                                  ) : (
+                                    <span className="text-muted-foreground italic">No name set</span>
+                                  )}
+                                </p>
                                 <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-6 w-6 shrink-0"
+                                  onClick={() => handleNameEdit(user.id, user.firstName, user.lastName)}
+                                  data-testid={`button-edit-name-${user.id}`}
+                                >
+                                  <Edit2 className="w-3 h-3" />
+                                </Button>
+                              </div>
+                              {/* Email row */}
+                              <p className="text-xs text-muted-foreground truncate max-w-[200px]" data-testid={`text-email-${user.id}`}>
+                                {user.email}
+                              </p>
+                              {/* Phone row */}
+                              <div className="flex items-center gap-1 mt-0.5">
+                                <span className="text-xs text-muted-foreground" data-testid={`text-phone-${user.id}`}>
+                                  {user.phone || "—"}
+                                </span>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-5 w-5 shrink-0"
+                                  onClick={() => handlePhoneEdit(user.id, user.phone)}
+                                  data-testid={`button-edit-phone-${user.id}`}
+                                >
+                                  <Phone className="w-3 h-3" />
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell data-testid={`badge-role-${user.id}`}>
+                          {getRoleBadge(user.role)}
+                        </TableCell>
+                        <TableCell data-testid={`cell-company-${user.id}`}>
+                          {user.role === 'client' ? (
+                            <Select
+                              value={user.clientId || ""}
+                              onValueChange={(value) => handleClientChange(user.id, value || null)}
+                              disabled={updateUserMutation.isPending || !canModifyUser(user)}
+                            >
+                              <SelectTrigger className="w-40" data-testid={`select-company-${user.id}`}>
+                                <SelectValue placeholder="Select company..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {clients?.map((client) => (
+                                  <SelectItem key={client.id} value={client.id}>
+                                    {client.companyName}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {format(new Date(user.createdAt), "MMM d, yyyy")}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {!canModifyUser(user) ? (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="inline-block">
+                                    <Select
+                                      value={user.role}
+                                      disabled={true}
+                                    >
+                                      <SelectTrigger
+                                        className="w-36"
+                                        data-testid={`select-role-${user.id}`}
+                                      >
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                    </Select>
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>
+                                    {user.id === currentUser?.id
+                                      ? "You cannot change your own role"
+                                      : user.role === 'super_admin' && currentRole !== 'super_admin'
+                                        ? "Only super admins can modify super admin roles"
+                                        : "Cannot modify this user."}
+                                  </p>
+                                </TooltipContent>
+                              </Tooltip>
+                            ) : (
+                              <Select
+                                value={user.role}
+                                onValueChange={(value) => handleRoleChange(user.id, value)}
+                                disabled={updateUserMutation.isPending}
+                              >
+                                <SelectTrigger
+                                  className="w-36"
+                                  data-testid={`select-role-${user.id}`}
+                                >
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="driver">Driver</SelectItem>
+                                  <SelectItem value="client">Client</SelectItem>
+                                  <SelectItem value="admin">Admin</SelectItem>
+                                  {currentRole === 'super_admin' && (
+                                    <SelectItem value="super_admin">Super Admin</SelectItem>
+                                  )}
+                                </SelectContent>
+                              </Select>
+                            )}
+
+                            {/* Change Password Button */}
+                            {canModifyUser(user) && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    onClick={() => handleChangePasswordClick(user.id, `${user.firstName} ${user.lastName}`)}
+                                    disabled={changePasswordMutation.isPending}
+                                    className="text-muted-foreground hover:text-primary"
+                                  >
+                                    <Lock className="w-4 h-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Change Password</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
+
+                            {/* Delete button - only for super admins/admins deleting regular users */}
+                            {canModifyUser(user) && (
+                              <Button
                                 size="icon"
                                 variant="ghost"
-                                onClick={() => handleChangePasswordClick(user.id, `${user.firstName} ${user.lastName}`)}
-                                disabled={changePasswordMutation.isPending}
-                                className="text-muted-foreground hover:text-primary"
-                                >
-                                <Lock className="w-4 h-4" />
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                                <p>Change Password</p>
-                            </TooltipContent>
-                            </Tooltip>
-                        )}
-
-                        {/* Delete button - only for super admins/admins deleting regular users */}
-                        {canModifyUser(user) && (
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => handleDeleteUser(user.id, `${user.firstName} ${user.lastName}`)}
-                            disabled={deleteUserMutation.isPending}
-                            data-testid={`button-delete-user-${user.id}`}
-                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                                onClick={() => handleDeleteUser(user.id, `${user.firstName} ${user.lastName}`)}
+                                disabled={deleteUserMutation.isPending}
+                                data-testid={`button-delete-user-${user.id}`}
+                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
             </TooltipProvider>
           </CardContent>
         </Card>
+
       ) : (
         <Card>
           <CardContent className="p-6">
@@ -665,17 +709,17 @@ export default function UserManagementPage() {
           </DialogHeader>
           <div className="py-4 space-y-4">
             <div className="space-y-2">
-                <Label>New Password</Label>
-                <div className="relative">
-                    <Lock className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                    type="password"
-                    placeholder="Min 8 characters"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="pl-9"
-                    />
-                </div>
+              <Label>New Password</Label>
+              <div className="relative">
+                <Lock className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="password"
+                  placeholder="Min 8 characters"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
             </div>
           </div>
           <DialogFooter>

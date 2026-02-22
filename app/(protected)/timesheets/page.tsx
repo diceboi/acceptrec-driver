@@ -7,7 +7,8 @@ import { Timesheet } from "@/shared/schema";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Plus, List, CheckCircle, XCircle, X } from "lucide-react";
+import { Clock, Plus, List, CheckCircle, XCircle, X, Search } from "lucide-react";
+
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -23,15 +24,29 @@ export default function TimesheetsPage() {
 
   const initialFilter = (searchParams.get("filter") as FilterStatus) ?? null;
   const [activeFilter, setActiveFilter] = useState<FilterStatus>(initialFilter);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Sync filter if URL param changes (e.g. browser back/forward)
   useEffect(() => {
     setActiveFilter((searchParams.get("filter") as FilterStatus) ?? null);
   }, [searchParams]);
 
-  const filteredTimesheets = activeFilter
+  // Apply both status filter and text search
+  const baseFiltered = activeFilter
     ? timesheets.filter(t => t.approvalStatus === activeFilter)
     : timesheets;
+
+  const filteredTimesheets = searchQuery.trim()
+    ? baseFiltered.filter(t => {
+      const q = searchQuery.toLowerCase();
+      return (
+        (t.driverName ?? "").toLowerCase().includes(q) ||
+        (t.weekStartDate ?? "").toLowerCase().includes(q)
+      );
+    })
+    : baseFiltered;
+
+
 
   const toggleFilter = (status: FilterStatus) => {
     setActiveFilter(prev => (prev === status ? null : status));
@@ -97,7 +112,20 @@ export default function TimesheetsPage() {
         </TabsList>
 
         <TabsContent value="list" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {/* Search bar */}
+          <div className="relative">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search by driver name or week…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 pl-9 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            />
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+
             {filterCards.map((card) => (
               <Card
                 key={card.label}
