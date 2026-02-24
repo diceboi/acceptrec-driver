@@ -31,11 +31,19 @@ import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle } from "lucide-react";
-import { format, parseISO, addDays } from "date-fns";
-import { useEffect } from "react";
+import { format, parseISO, addDays, startOfWeek, subWeeks } from "date-fns";
+import { useEffect, useMemo } from "react";
 import { ClientAutocomplete } from "@/components/client-autocomplete";
 import { ObjectUploader } from "@/components/ObjectUploader";
-import { Upload } from "lucide-react";
+import { Upload, Calendar } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
 
 interface EditDialogProps {
   timesheet: Timesheet;
@@ -95,147 +103,155 @@ const calculateHours = (startTime: string, endTime: string, breakTime: string): 
 };
 
 export default function EditDialog({ timesheet, open, onOpenChange }: EditDialogProps) {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const queryClient = useQueryClient();
-  const weekStart = parseISO(timesheet.weekStartDate);
 
-  const daysOfWeek: Array<{ name: string; date: Date; fields: DayFields }> = [
-    {
-      name: "Sunday",
-      date: weekStart,
-      fields: {
-        clientField: "sundayClient",
-        startField: "sundayStart",
-        endField: "sundayEnd",
-        breakField: "sundayBreak",
-        poaField: "sundayPoa",
-        otherWorkField: "sundayOtherWork",
-        totalField: "sundayTotal",
-        nightOutField: "sundayNightOut",
-        disableMinHoursField: "sundayDisableMinHours",
-        expenseAmountField: "sundayExpenseAmount",
-        expenseReceiptField: "sundayExpenseReceipt",
-        reviewField: "sundayReview",
+
+  const getDaysOfWeek = (startDateStr: string) => {
+    const weekStart = parseISO(startDateStr || new Date().toISOString());
+    return [
+
+      {
+        name: "Sunday",
+        date: weekStart,
+        fields: {
+          clientField: "sundayClient",
+          startField: "sundayStart",
+          endField: "sundayEnd",
+          breakField: "sundayBreak",
+          poaField: "sundayPoa",
+          otherWorkField: "sundayOtherWork",
+          totalField: "sundayTotal",
+          nightOutField: "sundayNightOut",
+          disableMinHoursField: "sundayDisableMinHours",
+          expenseAmountField: "sundayExpenseAmount",
+          expenseReceiptField: "sundayExpenseReceipt",
+          reviewField: "sundayReview",
+        },
       },
-    },
-    {
-      name: "Monday",
-      date: addDays(weekStart, 1),
-      fields: {
-        clientField: "mondayClient",
-        startField: "mondayStart",
-        endField: "mondayEnd",
-        breakField: "mondayBreak",
-        poaField: "mondayPoa",
-        otherWorkField: "mondayOtherWork",
-        totalField: "mondayTotal",
-        nightOutField: "mondayNightOut",
-        disableMinHoursField: "mondayDisableMinHours",
-        expenseAmountField: "mondayExpenseAmount",
-        expenseReceiptField: "mondayExpenseReceipt",
-        reviewField: "mondayReview",
+      {
+        name: "Monday",
+        date: addDays(weekStart, 1),
+        fields: {
+          clientField: "mondayClient",
+          startField: "mondayStart",
+          endField: "mondayEnd",
+          breakField: "mondayBreak",
+          poaField: "mondayPoa",
+          otherWorkField: "mondayOtherWork",
+          totalField: "mondayTotal",
+          nightOutField: "mondayNightOut",
+          disableMinHoursField: "mondayDisableMinHours",
+          expenseAmountField: "mondayExpenseAmount",
+          expenseReceiptField: "mondayExpenseReceipt",
+          reviewField: "mondayReview",
+        },
       },
-    },
-    {
-      name: "Tuesday",
-      date: addDays(weekStart, 2),
-      fields: {
-        clientField: "tuesdayClient",
-        startField: "tuesdayStart",
-        endField: "tuesdayEnd",
-        breakField: "tuesdayBreak",
-        poaField: "tuesdayPoa",
-        otherWorkField: "tuesdayOtherWork",
-        totalField: "tuesdayTotal",
-        nightOutField: "tuesdayNightOut",
-        disableMinHoursField: "tuesdayDisableMinHours",
-        expenseAmountField: "tuesdayExpenseAmount",
-        expenseReceiptField: "tuesdayExpenseReceipt",
-        reviewField: "tuesdayReview",
+      {
+        name: "Tuesday",
+        date: addDays(weekStart, 2),
+        fields: {
+          clientField: "tuesdayClient",
+          startField: "tuesdayStart",
+          endField: "tuesdayEnd",
+          breakField: "tuesdayBreak",
+          poaField: "tuesdayPoa",
+          otherWorkField: "tuesdayOtherWork",
+          totalField: "tuesdayTotal",
+          nightOutField: "tuesdayNightOut",
+          disableMinHoursField: "tuesdayDisableMinHours",
+          expenseAmountField: "tuesdayExpenseAmount",
+          expenseReceiptField: "tuesdayExpenseReceipt",
+          reviewField: "tuesdayReview",
+        },
       },
-    },
-    {
-      name: "Wednesday",
-      date: addDays(weekStart, 3),
-      fields: {
-        clientField: "wednesdayClient",
-        startField: "wednesdayStart",
-        endField: "wednesdayEnd",
-        breakField: "wednesdayBreak",
-        poaField: "wednesdayPoa",
-        otherWorkField: "wednesdayOtherWork",
-        totalField: "wednesdayTotal",
-        nightOutField: "wednesdayNightOut",
-        disableMinHoursField: "wednesdayDisableMinHours",
-        expenseAmountField: "wednesdayExpenseAmount",
-        expenseReceiptField: "wednesdayExpenseReceipt",
-        reviewField: "wednesdayReview",
+      {
+        name: "Wednesday",
+        date: addDays(weekStart, 3),
+        fields: {
+          clientField: "wednesdayClient",
+          startField: "wednesdayStart",
+          endField: "wednesdayEnd",
+          breakField: "wednesdayBreak",
+          poaField: "wednesdayPoa",
+          otherWorkField: "wednesdayOtherWork",
+          totalField: "wednesdayTotal",
+          nightOutField: "wednesdayNightOut",
+          disableMinHoursField: "wednesdayDisableMinHours",
+          expenseAmountField: "wednesdayExpenseAmount",
+          expenseReceiptField: "wednesdayExpenseReceipt",
+          reviewField: "wednesdayReview",
+        },
       },
-    },
-    {
-      name: "Thursday",
-      date: addDays(weekStart, 4),
-      fields: {
-        clientField: "thursdayClient",
-        startField: "thursdayStart",
-        endField: "thursdayEnd",
-        breakField: "thursdayBreak",
-        poaField: "thursdayPoa",
-        otherWorkField: "thursdayOtherWork",
-        totalField: "thursdayTotal",
-        nightOutField: "thursdayNightOut",
-        disableMinHoursField: "thursdayDisableMinHours",
-        expenseAmountField: "thursdayExpenseAmount",
-        expenseReceiptField: "thursdayExpenseReceipt",
-        reviewField: "thursdayReview",
+      {
+        name: "Thursday",
+        date: addDays(weekStart, 4),
+        fields: {
+          clientField: "thursdayClient",
+          startField: "thursdayStart",
+          endField: "thursdayEnd",
+          breakField: "thursdayBreak",
+          poaField: "thursdayPoa",
+          otherWorkField: "thursdayOtherWork",
+          totalField: "thursdayTotal",
+          nightOutField: "thursdayNightOut",
+          disableMinHoursField: "thursdayDisableMinHours",
+          expenseAmountField: "thursdayExpenseAmount",
+          expenseReceiptField: "thursdayExpenseReceipt",
+          reviewField: "thursdayReview",
+        },
       },
-    },
-    {
-      name: "Friday",
-      date: addDays(weekStart, 5),
-      fields: {
-        clientField: "fridayClient",
-        startField: "fridayStart",
-        endField: "fridayEnd",
-        breakField: "fridayBreak",
-        poaField: "fridayPoa",
-        otherWorkField: "fridayOtherWork",
-        totalField: "fridayTotal",
-        nightOutField: "fridayNightOut",
-        disableMinHoursField: "fridayDisableMinHours",
-        expenseAmountField: "fridayExpenseAmount",
-        expenseReceiptField: "fridayExpenseReceipt",
-        reviewField: "fridayReview",
+      {
+        name: "Friday",
+        date: addDays(weekStart, 5),
+        fields: {
+          clientField: "fridayClient",
+          startField: "fridayStart",
+          endField: "fridayEnd",
+          breakField: "fridayBreak",
+          poaField: "fridayPoa",
+          otherWorkField: "fridayOtherWork",
+          totalField: "fridayTotal",
+          nightOutField: "fridayNightOut",
+          disableMinHoursField: "fridayDisableMinHours",
+          expenseAmountField: "fridayExpenseAmount",
+          expenseReceiptField: "fridayExpenseReceipt",
+          reviewField: "fridayReview",
+        },
       },
-    },
-    {
-      name: "Saturday",
-      date: addDays(weekStart, 6),
-      fields: {
-        clientField: "saturdayClient",
-        startField: "saturdayStart",
-        endField: "saturdayEnd",
-        breakField: "saturdayBreak",
-        poaField: "saturdayPoa",
-        otherWorkField: "saturdayOtherWork",
-        totalField: "saturdayTotal",
-        nightOutField: "saturdayNightOut",
-        disableMinHoursField: "saturdayDisableMinHours",
-        expenseAmountField: "saturdayExpenseAmount",
-        expenseReceiptField: "saturdayExpenseReceipt",
-        reviewField: "saturdayReview",
+      {
+        name: "Saturday",
+        date: addDays(weekStart, 6),
+        fields: {
+          clientField: "saturdayClient",
+          startField: "saturdayStart",
+          endField: "saturdayEnd",
+          breakField: "saturdayBreak",
+          poaField: "saturdayPoa",
+          otherWorkField: "saturdayOtherWork",
+          totalField: "saturdayTotal",
+          nightOutField: "saturdayNightOut",
+          disableMinHoursField: "saturdayDisableMinHours",
+          expenseAmountField: "saturdayExpenseAmount",
+          expenseReceiptField: "saturdayExpenseReceipt",
+          reviewField: "saturdayReview",
+        },
       },
-    },
-  ];
+    ];
+  };
+
+  const defaultDaysOfWeek = getDaysOfWeek(timesheet.weekStartDate);
 
   const getDefaultValues = () => {
+
     const defaults: any = {
       driverName: timesheet.driverName,
       weekStartDate: timesheet.weekStartDate,
     };
 
-    daysOfWeek.forEach(day => {
+    defaultDaysOfWeek.forEach(day => {
       defaults[day.fields.clientField] = timesheet[day.fields.clientField as keyof Timesheet] || "";
+
       defaults[day.fields.startField] = timesheet[day.fields.startField as keyof Timesheet] || "";
       defaults[day.fields.endField] = timesheet[day.fields.endField as keyof Timesheet] || "";
       defaults[day.fields.breakField] = timesheet[day.fields.breakField as keyof Timesheet] || "";
@@ -257,7 +273,43 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
     defaultValues: getDefaultValues(),
   });
 
+  const selectedWeekStr = form.watch("weekStartDate") || timesheet.weekStartDate;
+  const currentDaysOfWeek = getDaysOfWeek(selectedWeekStr);
+
+  const isAdmin = role === "admin" || role === "super_admin";
+
+  const availableWeeks = useMemo(() => {
+
+    const today = new Date();
+    const currentWeekStart = startOfWeek(today, { weekStartsOn: 0 });
+    const weeks = [];
+    for (let i = 0; i < 5; i++) {
+      const weekDate = subWeeks(currentWeekStart, i);
+      weeks.push({
+        value: format(weekDate, 'yyyy-MM-dd'),
+        label: i === 0
+          ? `This Week (${format(weekDate, 'MMM d, yyyy')})`
+          : `${format(weekDate, 'MMM d, yyyy')}`
+      });
+    }
+
+    // Make sure the timesheet's original week is in the list
+    const originalWeekVal = timesheet.weekStartDate;
+    if (originalWeekVal && !weeks.find(w => w.value === originalWeekVal)) {
+      const parsed = parseISO(originalWeekVal);
+      weeks.push({
+        value: originalWeekVal,
+        label: `${format(parsed, 'MMM d, yyyy')}`
+      });
+      // Sort descending
+      weeks.sort((a, b) => b.value.localeCompare(a.value));
+    }
+
+    return weeks;
+  }, [timesheet.weekStartDate]);
+
   // Auto-calculate total working time for Monday
+
   const mondayStart = form.watch("mondayStart");
   const mondayEnd = form.watch("mondayEnd");
   const mondayBreak = form.watch("mondayBreak");
@@ -393,9 +445,39 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
                 )}
               />
 
+              {isAdmin && (
+                <FormField
+                  control={form.control}
+                  name="weekStartDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Week Commencing</FormLabel>
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <SelectTrigger className="w-full" data-testid="select-edit-week">
+                          <Calendar className="w-4 h-4 mr-2" />
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableWeeks.map(week => (
+                            <SelectItem key={week.value} value={week.value}>
+                              {week.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Use this to correct the submission week if the driver made a mistake.
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
               <div className="space-y-4">
-                {daysOfWeek.map((day) => (
+                {currentDaysOfWeek.map((day) => (
                   <Card key={day.name} className="p-4">
+
                     <div className="space-y-4">
                       <div className="flex items-center justify-between mb-2">
                         <h4 className="text-sm font-semibold text-foreground">
@@ -625,15 +707,15 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
                               <FormLabel className="text-xs">Receipt</FormLabel>
                               <div className="flex items-center gap-2">
                                 {field.value && (
-                                   <a 
-                                     href={field.value.startsWith('http') || field.value.startsWith('/') ? field.value : `/${field.value}`} 
-                                     target="_blank" 
-                                     rel="noopener noreferrer"
-                                     className="text-xs text-blue-600 hover:underline truncate max-w-[100px] block"
-                                     title="View Receipt"
-                                   >
-                                     View
-                                   </a>
+                                  <a
+                                    href={field.value.startsWith('http') || field.value.startsWith('/') ? field.value : `/${field.value}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs text-blue-600 hover:underline truncate max-w-[100px] block"
+                                    title="View Receipt"
+                                  >
+                                    View
+                                  </a>
                                 )}
                                 <ObjectUploader
                                   maxNumberOfFiles={1}
@@ -660,25 +742,25 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
                                       const uploadURL = (file as any).uploadURL || file.meta?.uploadURL || file.response?.body?.url || file.response?.uploadURL;
 
                                       if (!uploadURL) {
-                                         // If local upload, maybe construct it? 
-                                         // But let's verify what Uppy returns for XHR upload.
-                                         // For now, rely on standard uppy behavior.
-                                         console.error("No upload URL found", file);
-                                         toast.error("Upload URL missing");
-                                         return;
+                                        // If local upload, maybe construct it? 
+                                        // But let's verify what Uppy returns for XHR upload.
+                                        // For now, rely on standard uppy behavior.
+                                        console.error("No upload URL found", file);
+                                        toast.error("Upload URL missing");
+                                        return;
                                       }
 
-                                      const response = await apiRequest("PUT", "/api/receipts", { 
-                                        receiptURL: uploadURL 
+                                      const response = await apiRequest("PUT", "/api/receipts", {
+                                        receiptURL: uploadURL
                                       });
-                                      
+
                                       if (!response.ok) throw new Error("Failed to process receipt");
-                                      
+
                                       const data = await response.json();
                                       field.onChange(data.objectPath);
                                       toast.success("Receipt attached");
-                                    } catch (e) { 
-                                      console.error(e); 
+                                    } catch (e) {
+                                      console.error(e);
                                       toast.error("Failed to attach receipt");
                                     }
                                   }}
