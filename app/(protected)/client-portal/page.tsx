@@ -16,10 +16,10 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { CheckCircle2, XCircle, Clock, Building2, Calendar, Star, FileText, ChevronRight, AlertTriangle } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, Building2, Calendar, Star, FileText, ChevronRight, AlertTriangle, Pencil } from "lucide-react";
 import { format, parseISO, addDays } from "date-fns";
 import { useAuth } from "@/hooks/use-auth";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { apiRequest } from "@/lib/queryClient";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -101,6 +101,46 @@ interface ClientInfo {
 const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const;
 const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+type DayKey = typeof days[number];
+
+interface DayEditState {
+  start: string;
+  end: string;
+  break: string;
+  total: string;
+}
+
+type EditFormState = Record<DayKey, DayEditState>;
+
+function parseTimeToMinutes(t: string): number {
+  const [h, m] = t.split(':').map(Number);
+  if (isNaN(h) || isNaN(m)) return 0;
+  return h * 60 + m;
+}
+
+function calcTotal(start: string, end: string, breakMins: string): string {
+  const s = parseTimeToMinutes(start);
+  const e = parseTimeToMinutes(end);
+  const b = parseInt(breakMins, 10) || 0;
+  if (!s && !e) return '0';
+  const worked = ((e - s - b) / 60);
+  if (worked < 0) return '0';
+  return worked.toFixed(2);
+}
+
+function buildInitialEditState(timesheet: Timesheet): EditFormState {
+  const result = {} as EditFormState;
+  for (const day of days) {
+    result[day] = {
+      start: (timesheet as any)[`${day}Start`] ?? '',
+      end: (timesheet as any)[`${day}End`] ?? '',
+      break: String((timesheet as any)[`${day}Break`] ?? ''),
+      total: (timesheet as any)[`${day}Total`] ?? '0',
+    };
+  }
+  return result;
+}
+
 export default function ClientPortal() {
   const { user, viewAsClientId } = useAuth();
   const queryClient = useQueryClient();
@@ -110,6 +150,14 @@ export default function ClientPortal() {
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [rating, setRating] = useState(0);
   const [comments, setComments] = useState("");
+
+  // Edit dialog state
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingTimesheet, setEditingTimesheet] = useState<Timesheet | null>(null);
+  const [editFormState, setEditFormState] = useState<EditFormState | null>(null);
+  const [editReason, setEditReason] = useState('');
+  const [editApproveAfter, setEditApproveAfter] = useState(false);
+  const [editRating, setEditRating] = useState(0);
 
   const { data: clientInfo, isLoading: isLoadingClient } = useQuery<ClientInfo>({
     queryKey: ["/api/client/company", viewAsClientId],
@@ -273,6 +321,86 @@ export default function ClientPortal() {
     }
   };
 
+  // Edit mutation
+  const editMutation = useMutation({
+    mutationFn: async (payload: {
+      timesheetId: string;
+      fields: Record<string, string>;
+      editReason: string;
+      approveAfterEdit: boolean;
+      rating?: number;
+      comments?: string;
+    }) => {
+      const response = await apiRequest('POST', `/api/client/timesheets/${payload.timesheetId}/edit`, {
+        ...payload.fields,
+        editReason: payload.editReason,
+        approveAfterEdit: payload.approveAfterEdit,
+        rating: payload.rating,
+        comments: payload.comments,
+        ...(viewAsClientId && { impersonateClientId: viewAsClientId }),
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      toast.success(editApproveAfter ? 'Timesheet edited and approved!' : 'Timesheet edited successfully');
+      queryClient.invalidateQueries({ queryKey: ["/api/client/approval-batches", selectedBatch?.id, "timesheets"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/client/approval-batches"] });
+      setEditDialogOpen(false);
+      setEditingTimesheet(null);
+      setEditFormState(null);
+      setEditReason('');
+      setEditApproveAfter(false);
+      setEditRating(0);
+    },
+    onError: () => {
+      toast.error('Failed to save timesheet edits');
+    },
+  });
+
+  const openEditDialog = (timesheet: Timesheet) => {
+    setEditingTimesheet(timesheet);
+    setEditFormState(buildInitialEditState(timesheet));
+    setEditReason('');
+    setEditApproveAfter(false);
+    setEditRating(0);
+    setEditDialogOpen(true);
+  };
+
+  const updateDayField = useCallback((day: DayKey, field: keyof DayEditState, val: string) => {
+    setEditFormState(prev => {
+      if (!prev) return prev;
+      const dayState = { ...prev[day], [field]: val };
+      // Auto-recalc total when start/end/break changes
+      if (field === 'start' || field === 'end' || field === 'break') {
+        dayState.total = calcTotal(dayState.start, dayState.end, dayState.break);
+      }
+      return { ...prev, [day]: dayState };
+    });
+  }, []);
+
+  const handleEditSave = (approveAfter: boolean) => {
+    if (!editingTimesheet || !editFormState) return;
+    if (!editReason.trim()) {
+      toast.error('Please provide a reason for the edit');
+      return;
+    }
+    const fields: Record<string, string> = {};
+    for (const day of days) {
+      fields[`${day}Start`] = editFormState[day].start;
+      fields[`${day}End`] = editFormState[day].end;
+      fields[`${day}Break`] = editFormState[day].break;
+      fields[`${day}Total`] = editFormState[day].total;
+    }
+    setEditApproveAfter(approveAfter);
+    editMutation.mutate({
+      timesheetId: editingTimesheet.id,
+      fields,
+      editReason: editReason.trim(),
+      approveAfterEdit: approveAfter,
+      rating: approveAfter && editRating > 0 ? editRating : undefined,
+    });
+  };
+
   if (isLoadingClient || isLoadingBatches) {
     return (
       <main className="max-w-6xl mx-auto px-4 py-8">
@@ -337,7 +465,7 @@ export default function ClientPortal() {
                   {timesheets.map((timesheet) => (
                     <Card key={timesheet.id} className="border" data-testid={`card-timesheet-${timesheet.id}`}>
                       <CardContent className="pt-4">
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-2">
                               <FileText className="w-4 h-4 text-muted-foreground" />
@@ -443,7 +571,7 @@ export default function ClientPortal() {
                               })}
                             </div>
                           </div>
-                          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mt-3 sm:mt-0">
+                          <div className="flex flex-col xs:flex-row items-stretch sm:items-start justify-end gap-2 mt-3 sm:mt-0">
                             {timesheet.approvalStatus === 'pending_approval' ? (
                               <>
                                 <Button
@@ -451,14 +579,24 @@ export default function ClientPortal() {
                                   size="sm"
                                   onClick={() => openRejectDialog(timesheet)}
                                   data-testid={`button-reject-${timesheet.id}`}
-                                  className="w-full sm:w-auto"
+                                  className="w-fit sm:w-auto"
                                 >
                                   <XCircle className="w-4 h-4 mr-1" />
                                   Reject
                                 </Button>
                                 <Button
+                                  variant="outline"
                                   size="sm"
-                                  className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto"
+                                  onClick={() => openEditDialog(timesheet)}
+                                  data-testid={`button-edit-${timesheet.id}`}
+                                  className="w-fit sm:w-auto"
+                                >
+                                  <Pencil className="w-4 h-4 mr-1" />
+                                  Edit
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  className="bg-green-600 hover:bg-green-700 text-white w-fit sm:w-auto"
                                   onClick={() => openApproveDialog(timesheet)}
                                   data-testid={`button-approve-${timesheet.id}`}
                                 >
@@ -586,6 +724,143 @@ export default function ClientPortal() {
             </Button>
             <Button onClick={handleApprove} disabled={approveMutation.isPending} data-testid="button-confirm-approve">
               {approveMutation.isPending ? "Approving..." : "Approve Timesheet"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="w-5 h-5 text-primary" />
+              Edit Timesheet
+            </DialogTitle>
+            <DialogDescription>
+              {editingTimesheet && (
+                <span>
+                  <span className="font-semibold text-foreground">{editingTimesheet.driverName}</span>
+                  {' — Week of '}
+                  <span className="font-semibold text-foreground">
+                    {format(parseISO(editingTimesheet.weekStartDate), 'MMMM d, yyyy')}
+                  </span>
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          {editFormState && editingTimesheet && (
+            <div className="space-y-4 py-2">
+              {/* Per-day rows */}
+              <div className="space-y-3">
+                {days.map((day, idx) => {
+                  const hasWork = !!(editFormState[day].start || editFormState[day].end);
+                  return (
+                    <div key={day} className={`p-3 rounded-lg border ${hasWork ? 'border-primary/30 bg-primary/5' : 'border-border bg-muted/30'}`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-sm font-semibold w-10">{dayLabels[idx]}</span>
+                        {hasWork && (
+                          <span className="text-xs text-muted-foreground">
+                            Total: <strong>{editFormState[day].total}h</strong>
+                          </span>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Start</Label>
+                          <Input
+                            placeholder="HH:MM"
+                            value={editFormState[day].start}
+                            onChange={(e) => updateDayField(day, 'start', e.target.value)}
+                            className="h-8 text-sm"
+                            data-testid={`edit-${day}-start`}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">End</Label>
+                          <Input
+                            placeholder="HH:MM"
+                            value={editFormState[day].end}
+                            onChange={(e) => updateDayField(day, 'end', e.target.value)}
+                            className="h-8 text-sm"
+                            data-testid={`edit-${day}-end`}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Break (min)</Label>
+                          <Input
+                            placeholder="30"
+                            value={editFormState[day].break}
+                            onChange={(e) => updateDayField(day, 'break', e.target.value)}
+                            className="h-8 text-sm"
+                            data-testid={`edit-${day}-break`}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Edit reason */}
+              <div className="space-y-2">
+                <Label htmlFor="edit-reason" className="flex items-center gap-1">
+                  Reason for edit
+                  <span className="text-destructive">*</span>
+                </Label>
+                <Textarea
+                  id="edit-reason"
+                  value={editReason}
+                  onChange={(e) => setEditReason(e.target.value)}
+                  placeholder="Please explain what you changed and why..."
+                  className="min-h-[80px]"
+                  data-testid="input-edit-reason"
+                />
+              </div>
+
+              {/* Optional rating (shown when approve after edit is possible) */}
+              <div className="space-y-2">
+                <Label>Driver Rating (Optional)</Label>
+                <div className="flex gap-1">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setEditRating(star === editRating ? 0 : star)}
+                      className="p-1 hover:scale-110 transition-transform"
+                      data-testid={`button-edit-rating-${star}`}
+                    >
+                      <Star
+                        className={`w-5 h-5 ${star <= editRating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`}
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)} className="w-full sm:w-auto">
+              Cancel
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => handleEditSave(false)}
+              disabled={editMutation.isPending || !editReason.trim()}
+              className="w-full sm:w-auto"
+              data-testid="button-confirm-edit-save"
+            >
+              {editMutation.isPending && !editApproveAfter ? 'Saving...' : 'Save Changes'}
+            </Button>
+            <Button
+              onClick={() => handleEditSave(true)}
+              disabled={editMutation.isPending || !editReason.trim()}
+              className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto"
+              data-testid="button-confirm-edit-approve"
+            >
+              {editMutation.isPending && editApproveAfter ? 'Saving...' : 'Save & Approve'}
             </Button>
           </DialogFooter>
         </DialogContent>
