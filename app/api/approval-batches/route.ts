@@ -1,4 +1,3 @@
-
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { approvalBatches, batchTimesheets, timesheets, clients } from '@/shared/schema';
@@ -35,9 +34,56 @@ export async function GET() {
       .from(approvalBatches)
       .orderBy(desc(approvalBatches.createdAt));
 
-    // Optional: Attach timesheet count to each batch if needed by frontend
-    // For now returning basic batch info
-    return NextResponse.json(batches);
+    // For each batch, compute the real status from its timesheets
+    const enriched = await Promise.all(batches.map(async (batch) => {
+      // Get all timesheets linked to this batch via junction table
+      const linked = await db
+        .select({ approvalStatus: timesheets.approvalStatus })
+        .from(batchTimesheets)
+        .innerJoin(timesheets, eq(batchTimesheets.timesheetId, timesheets.id))
+        .where(eq(batchTimesheets.batchId, batch.id));
+
+      // Fallback: check direct batchId on timesheets
+      const allTs = linked.length > 0
+        ? linked
+        : await db
+            .select({ approvalStatus: timesheets.approvalStatus })
+            .from(timesheets)
+            .where(eq(timesheets.batchId, batch.id));
+
+      if (allTs.length === 0) {
+        return batch; // No timesheets yet, keep stored status
+      }
+
+      const statuses = allTs.map(t => t.approvalStatus);
+      const total = statuses.length;
+      const approvedCount = statuses.filter(s => s === 'approved').length;
+      const rejectedCount = statuses.filter(s => s === 'rejected').length;
+      const pendingCount = total - approvedCount - rejectedCount;
+
+      let computedStatus: string;
+      if (pendingCount > 0) {
+        computedStatus = 'pending';
+      } else if (approvedCount === total) {
+        computedStatus = 'approved';
+      } else if (rejectedCount === total) {
+        computedStatus = 'rejected';
+      } else {
+        computedStatus = 'partial';
+      }
+
+      // Write back if the stored status is stale
+      if (computedStatus !== batch.status) {
+        await db
+          .update(approvalBatches)
+          .set({ status: computedStatus })
+          .where(eq(approvalBatches.id, batch.id));
+      }
+
+      return { ...batch, status: computedStatus };
+    }));
+
+    return NextResponse.json(enriched);
   } catch (error) {
     console.error('Error fetching admin approval batches:', error);
     return new NextResponse("Internal Server Error", { status: 500 });

@@ -5,6 +5,7 @@ import { timesheets, batchTimesheets, approvalBatches } from '@/shared/schema';
 import { createClient } from '@/lib/supabase/server';
 import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
+import { syncBatchStatus } from '@/lib/sync-batch-status';
 
 const editSchema = z.object({
   // Per-day editable fields
@@ -170,6 +171,9 @@ export async function POST(
       .set(updateSet)
       .where(eq(timesheets.id, timesheetId))
       .returning();
+
+    // Sync batch status so admin view reflects the current state
+    await syncBatchStatus(timesheetId);
 
     // Send admin notification email (non-blocking)
     try {

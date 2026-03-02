@@ -203,7 +203,12 @@ export default async function DashboardPage() {
                                                         {batch.createdAt ? format(new Date(batch.createdAt), 'MMM d, yyyy h:mm a') : 'N/A'}
                                                     </p>
                                                 </div>
-                                                <Badge variant={batch.status === 'approved' ? 'default' : batch.status === 'rejected' ? 'destructive' : 'secondary'}>
+                                                <Badge className={
+                                                    batch.status === 'approved' ? 'bg-green-500 hover:bg-green-600 text-white' :
+                                                    batch.status === 'rejected' ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' :
+                                                    batch.status === 'partial' ? 'bg-amber-500 hover:bg-amber-600 text-white' :
+                                                    'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                                                }>
                                                     {batch.status}
                                                 </Badge>
                                             </div>
@@ -338,7 +343,12 @@ export default async function DashboardPage() {
                                         <div key={entry.id} className="flex justify-between items-center border-b pb-2 last:border-0 last:pb-0">
                                             <div>
                                                 <p className="font-medium text-sm">Week of {format(parseISO(entry.weekStartDate), 'MMM d')}</p>
-                                                <Badge variant="outline" className="text-xs mt-1">{entry.approvalStatus}</Badge>
+                                                <Badge className={`text-xs mt-1 ${
+                                                    entry.approvalStatus === 'approved' ? 'bg-green-500 hover:bg-green-600 text-white' :
+                                                    entry.approvalStatus === 'rejected' ? 'bg-destructive text-destructive-foreground' :
+                                                    entry.approvalStatus === 'pending_approval' ? 'bg-amber-500 hover:bg-amber-600 text-white' :
+                                                    'border border-input bg-background text-foreground'
+                                                }`}>{entry.approvalStatus === 'pending_approval' ? 'Pending' : entry.approvalStatus}</Badge>
                                             </div>
                                             <div className="text-right">
                                                 <span className="font-bold text-primary">{getTotalHours(entry).toFixed(1)}h</span>

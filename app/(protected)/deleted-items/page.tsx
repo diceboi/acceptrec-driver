@@ -256,7 +256,14 @@ export default function DeletedItems() {
                             {format(new Date(timesheet.weekStartDate), 'MMM d, yyyy')}
                           </TableCell>
                           <TableCell>
-                            <Badge variant="secondary">{timesheet.approvalStatus}</Badge>
+                            <Badge className={
+                              timesheet.approvalStatus === 'approved' ? 'bg-green-500 hover:bg-green-600 text-white' :
+                              timesheet.approvalStatus === 'rejected' ? 'bg-destructive text-destructive-foreground' :
+                              timesheet.approvalStatus === 'pending_approval' ? 'bg-amber-500 hover:bg-amber-600 text-white' :
+                              'bg-secondary text-secondary-foreground'
+                            }>
+                              {timesheet.approvalStatus === 'pending_approval' ? 'Pending' : timesheet.approvalStatus}
+                            </Badge>
                           </TableCell>
                           <TableCell>
                             <div className="text-sm">

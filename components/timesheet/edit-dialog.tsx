@@ -30,7 +30,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, PenLine } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { format, parseISO, addDays, startOfWeek, subWeeks } from "date-fns";
 import { useEffect, useMemo } from "react";
 import { ClientAutocomplete } from "@/components/client-autocomplete";
@@ -428,6 +429,42 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
           </Alert>
         )}
 
+        {/* Client edit notification */}
+        {(() => {
+          const mods = timesheet.clientModifications as Record<string, any> | null;
+          if (!mods || Object.keys(mods).length === 0) return null;
+          const reason = mods.editReason as string | undefined;
+          const changes = mods.changes as Record<string, { before: string; after: string }> | undefined;
+          return (
+            <div className="mt-4 rounded-lg border border-amber-400 bg-amber-50 dark:bg-amber-950/40 p-4 space-y-2">
+              <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300 font-semibold text-sm">
+                <PenLine className="w-4 h-4" />
+                Client edited this timesheet
+              </div>
+              {reason && (
+                <p className="text-sm text-amber-800 dark:text-amber-200">
+                  <span className="font-medium">Reason: </span>{reason}
+                </p>
+              )}
+              {changes && Object.keys(changes).length > 0 && (
+                <div className="mt-2 space-y-1">
+                  <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">Changed fields:</p>
+                  <div className="grid grid-cols-1 gap-1">
+                    {Object.entries(changes).map(([field, { before, after }]) => (
+                      <div key={field} className="text-xs flex items-center gap-2 bg-amber-100 dark:bg-amber-900/40 rounded px-2 py-1">
+                        <span className="font-medium text-amber-900 dark:text-amber-100 w-40 shrink-0">{field.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase())}</span>
+                        <span className="line-through text-red-600 dark:text-red-400">{before || '—'}</span>
+                        <span className="text-muted-foreground">→</span>
+                        <span className="text-green-700 dark:text-green-400 font-medium">{after || '—'}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
         <ScrollArea className="flex-1 overflow-auto pr-4 min-h-0">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -475,14 +512,29 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
               )}
 
               <div className="space-y-4">
-                {currentDaysOfWeek.map((day) => (
-                  <Card key={day.name} className="p-4">
+                {currentDaysOfWeek.map((day) => {
+                  // Check if this day was edited by the client
+                  const mods = timesheet.clientModifications as Record<string, any> | null;
+                  const changes = mods?.changes as Record<string, any> | undefined;
+                  const dayKey = day.name.toLowerCase();
+                  const dayWasEdited = changes && Object.keys(changes).some(k => k.toLowerCase().startsWith(dayKey));
+
+                  return (
+                  <Card key={day.name} className={`p-4 ${dayWasEdited ? 'border-amber-400 bg-amber-50/50 dark:bg-amber-950/20' : ''}`}>
 
                     <div className="space-y-4">
                       <div className="flex items-center justify-between mb-2">
-                        <h4 className="text-sm font-semibold text-foreground">
-                          {day.name}
-                        </h4>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-sm font-semibold text-foreground">
+                            {day.name}
+                          </h4>
+                          {dayWasEdited && (
+                            <Badge className="gap-1 text-xs bg-amber-500 hover:bg-amber-600 text-white">
+                              <PenLine className="w-3 h-3" />
+                              Edited by client
+                            </Badge>
+                          )}
+                        </div>
                         <span className="text-xs text-muted-foreground">
                           {format(day.date, 'MMM d')}
                         </span>
@@ -796,7 +848,8 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
                       />
                     </div>
                   </Card>
-                ))}
+                  );
+                })}
               </div>
 
               <div className="flex gap-3 justify-end pt-4">

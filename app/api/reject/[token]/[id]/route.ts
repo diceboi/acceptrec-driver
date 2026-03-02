@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { approvalBatches, batchTimesheets, timesheets } from '@/shared/schema';
 import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
+import { syncBatchStatus } from '@/lib/sync-batch-status';
 
 const rejectSchema = z.object({
   approvedBy: z.string().min(1, "Approver name is required"),
@@ -51,7 +52,6 @@ export async function POST(
         }
     }
 
-    // 3. Update Timesheet
     const [updated] = await db
       .update(timesheets)
       .set({
@@ -63,6 +63,9 @@ export async function POST(
       })
       .where(eq(timesheets.id, timesheetId))
       .returning();
+
+    // Sync batch status
+    await syncBatchStatus(timesheetId);
 
     return NextResponse.json(updated);
 

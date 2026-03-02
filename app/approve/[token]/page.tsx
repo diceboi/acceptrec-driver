@@ -548,7 +548,7 @@ function DriverTimesheetCard({ timesheet, token, batchClientName, batchData }: D
           <div className="flex gap-2 pt-4 border-t">
             <Dialog open={approveDialogOpen} onOpenChange={setApproveDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="flex-1 gap-2" data-testid={`button-approve-${timesheet.id}`}>
+                <Button className="flex-1 gap-2 bg-green-600 hover:bg-green-700 text-white" data-testid={`button-approve-${timesheet.id}`}>
                   <CheckCircle className="w-4 h-4" />
                   Approve
                 </Button>

@@ -5,6 +5,7 @@ import { timesheets, batchTimesheets, approvalBatches } from '@/shared/schema';
 import { createClient } from '@/lib/supabase/server';
 import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
+import { syncBatchStatus } from '@/lib/sync-batch-status';
 
 const approveSchema = z.object({
   rating: z.number().min(1).max(10).optional(),
@@ -107,6 +108,9 @@ export async function POST(
       })
       .where(eq(timesheets.id, timesheetId))
       .returning();
+
+    // Sync batch status
+    await syncBatchStatus(timesheetId);
 
     return NextResponse.json(updated);
 

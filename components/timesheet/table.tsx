@@ -274,7 +274,7 @@ export default function TimesheetTable({ timesheets, isLoading = false }: Timesh
                         {!!timesheet.clientModifications && Object.keys(timesheet.clientModifications as Record<string, unknown>).length > 0 && (
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <Badge variant="outline" className="gap-1 border-amber-500 text-amber-600">
+                              <Badge className="gap-1 bg-amber-500 hover:bg-amber-600 text-white">
                                 <PenLine className="w-3 h-3" />
                                 Edited
                               </Badge>

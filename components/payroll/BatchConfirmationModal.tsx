@@ -82,7 +82,12 @@ export function BatchConfirmationModal({ batchId }: BatchConfirmationModalProps)
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Status</p>
-                    <Badge variant={batch.status === 'approved' ? 'default' : 'secondary'}>
+                    <Badge className={
+                        batch.status === 'approved' ? 'bg-green-500 hover:bg-green-600 text-white' :
+                        batch.status === 'rejected' ? 'bg-destructive text-destructive-foreground' :
+                        batch.status === 'partial' ? 'bg-amber-500 hover:bg-amber-600 text-white' :
+                        'bg-secondary text-secondary-foreground'
+                    }>
                       {batch.status}
                     </Badge>
                   </div>

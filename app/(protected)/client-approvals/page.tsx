@@ -101,7 +101,7 @@ export default function ClientApprovalsPage() {
         );
       case "partial":
         return (
-          <Badge variant="secondary" className="gap-1">
+          <Badge className="gap-1 bg-amber-500 hover:bg-amber-600 text-white">
             <CheckCircle className="w-3 h-3" />
             Partial
           </Badge>
@@ -249,6 +249,15 @@ export default function ClientApprovalsPage() {
                   >
                     <Copy className="w-4 h-4 mr-2" />
                     Copy Link
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => window.open(`${window.location.origin}/approve/${batch.approvalToken}`, '_blank')}
+                    data-testid={`button-open-batch-link-${batch.id}`}
+                  >
+                    <Send className="w-4 h-4 mr-2" />
+                    Open Link
                   </Button>
                 </div>
               </CardContent>
@@ -420,7 +429,15 @@ function CreateBatchForm({ timesheets, onSuccess }: CreateBatchFormProps) {
                   />
                   <label htmlFor={timesheet.id} className="text-sm cursor-pointer">
                     {timesheet.driverName}
-                    {timesheet.approvalStatus !== 'draft' && <span className="text-muted-foreground text-xs ml-2">({timesheet.approvalStatus})</span>}
+                    {timesheet.approvalStatus !== 'draft' && (
+                      <Badge className={`text-xs ml-2 ${
+                        timesheet.approvalStatus === 'approved' ? 'bg-green-500 hover:bg-green-600 text-white' :
+                        timesheet.approvalStatus === 'rejected' ? 'bg-destructive text-destructive-foreground' :
+                        'bg-amber-500 hover:bg-amber-600 text-white'
+                      }`}>
+                        {timesheet.approvalStatus === 'pending_approval' ? 'Pending' : timesheet.approvalStatus}
+                      </Badge>
+                    )}
                   </label>
                 </div>
               ))}
