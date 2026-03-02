@@ -390,14 +390,14 @@ export default function ClientPortal() {
 
                                         {/* Billable hours - prominent */}
                                         <div className="text-primary font-bold text-sm mt-1">
-                                          {billableHours.toFixed(1)}h
+                                          {billableHours.toFixed(2)}h
                                         </div>
 
                                         {/* Minimum applied indicator */}
                                         {minimumApplied && (
                                           <div
                                             className="text-[9px] text-blue-600 dark:text-blue-400 font-medium hidden sm:block"
-                                            title={`Actual: ${actualHours.toFixed(1)}h, Billable: ${billableHours.toFixed(1)}h`}
+                                            title={`Actual: ${actualHours.toFixed(2)}h, Billable: ${billableHours.toFixed(2)}h`}
                                           >
                                             Min applied
                                           </div>
@@ -406,7 +406,7 @@ export default function ClientPortal() {
                                         {minDisabled && (
                                           <div
                                             className="text-[9px] text-orange-600 dark:text-orange-400 font-medium hidden sm:block"
-                                            title={`Actual: ${actualHours.toFixed(1)}h, Min (8h) disabled`}
+                                            title={`Actual: ${actualHours.toFixed(2)}h, Min (8h) disabled`}
                                           >
                                             Min disabled
                                           </div>

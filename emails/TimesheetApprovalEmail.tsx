@@ -36,7 +36,7 @@ export const TimesheetApprovalEmail = ({
             You have new timesheets waiting for your approval for the week starting on {weekStartDate}.
           </Text>
           <Section style={btnContainer}>
-            <Button style={button} href='https://drivers.acceptrec.co.uk'>
+            <Button style={button} href='https://acceptrec-driver.vercel.app'>
               Review Timesheets
             </Button>
           </Section>
