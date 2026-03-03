@@ -12,6 +12,8 @@ import { Clock, Plus, List, CheckCircle, XCircle, X, Search } from "lucide-react
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 
 type FilterStatus = "pending_approval" | "approved" | "rejected" | "draft" | null;
@@ -25,6 +27,8 @@ export default function TimesheetsPage() {
   const initialFilter = (searchParams.get("filter") as FilterStatus) ?? null;
   const [activeFilter, setActiveFilter] = useState<FilterStatus>(initialFilter);
   const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 25;
 
   // Sync filter if URL param changes (e.g. browser back/forward)
   useEffect(() => {
@@ -36,6 +40,11 @@ export default function TimesheetsPage() {
     ? timesheets.filter(t => t.approvalStatus === activeFilter)
     : timesheets;
 
+  // Reset page when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeFilter, searchQuery]);
+
   const filteredTimesheets = searchQuery.trim()
     ? baseFiltered.filter(t => {
       const q = searchQuery.toLowerCase();
@@ -45,6 +54,12 @@ export default function TimesheetsPage() {
       );
     })
     : baseFiltered;
+
+  const totalPages = Math.ceil(filteredTimesheets.length / itemsPerPage);
+  const paginatedTimesheets = filteredTimesheets.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
 
 
@@ -170,7 +185,39 @@ export default function TimesheetsPage() {
               )}
             </CardHeader>
             <CardContent>
-              <TimesheetTable timesheets={filteredTimesheets} isLoading={isLoading} />
+              <TimesheetTable timesheets={paginatedTimesheets} isLoading={isLoading} />
+              
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between mt-4">
+                  <div className="text-sm text-muted-foreground">
+                    Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredTimesheets.length)} of {filteredTimesheets.length} entries
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronLeft className="h-4 w-4 mr-1" />
+                      Previous
+                    </Button>
+                    <div className="text-sm font-medium px-2">
+                      Page {currentPage} of {totalPages}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      Next
+                      <ChevronRight className="h-4 w-4 ml-1" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

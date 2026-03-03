@@ -1,7 +1,7 @@
 
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { timesheets, batchTimesheets, approvalBatches } from '@/shared/schema';
+import { timesheets, batchTimesheets, approvalBatches, users } from '@/shared/schema';
 import { createClient } from '@/lib/supabase/server';
 import { eq, and } from 'drizzle-orm';
 
@@ -69,16 +69,25 @@ export async function GET(
       return NextResponse.json([]);
     }
 
-    // In a real query builders usually support whereIn, Drizzle does via `inArray`
-    // Importing inArray from drizzle-orm
     const { inArray } = await import('drizzle-orm');
     
-    const timesheetData = await db
-        .select()
-        .from(timesheets)
-        .where(inArray(timesheets.id, timesheetIds));
+    // Evaluate queries sequentially to prevent pool exhaustion or locks when max: 1
+    const timesheetData = await db.select().from(timesheets).where(inArray(timesheets.id, timesheetIds));
+    const allUsers = await db.select({ id: users.id, firstName: users.firstName, lastName: users.lastName }).from(users);
 
-    return NextResponse.json(timesheetData);
+    // Build a name map so we show the proper full name instead of the stored email-based driverName
+    const userNameMap = new Map<string, string>();
+    for (const u of allUsers) {
+      const fullName = [u.firstName, u.lastName].filter(Boolean).join(' ').trim();
+      if (fullName) userNameMap.set(u.id, fullName);
+    }
+
+    const result = timesheetData.map(ts => ({
+      ...ts,
+      driverName: userNameMap.get(ts.userId) ?? ts.driverName,
+    }));
+
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Error fetching batch timesheets:', error);
     return new NextResponse("Internal Server Error", { status: 500 });

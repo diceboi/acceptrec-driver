@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Shield, Clock, Filter, X, Search, Users, Building2, UserCheck } from "lucide-react";
+import { Shield, Clock, Filter, X, Search, Users, Building2, UserCheck, ChevronLeft, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
 
 interface SystemAuditLog {
@@ -46,6 +46,8 @@ export default function AuditLog() {
   const [entityFilter, setEntityFilter] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [actorFilter, setActorFilter] = useState<string>("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 25;
 
   const { data: logs, isLoading } = useQuery<SystemAuditLog[]>({
     queryKey: ['/api/audit-logs'],
@@ -159,7 +161,19 @@ export default function AuditLog() {
     setEntityFilter("all");
     setActorFilter("all");
     setSearchTerm("");
+    setCurrentPage(1);
   };
+
+  // Reset page when filters change
+  useMemo(() => {
+    setCurrentPage(1);
+  }, [actionFilter, entityFilter, actorFilter, searchTerm]);
+
+  const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
+  const paginatedLogs = filteredLogs.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   const hasFilters = actionFilter !== "all" || entityFilter !== "all" || actorFilter !== "all" || searchTerm !== "";
 
@@ -363,7 +377,7 @@ export default function AuditLog() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredLogs.map((log) => {
+                  {paginatedLogs.map((log) => {
                     const actorType = getActorType(log);
                     return (
                       <TableRow key={log.id} data-testid={`audit-log-row-${log.id}`}>
@@ -427,6 +441,37 @@ export default function AuditLog() {
                   })}
                 </TableBody>
               </Table>
+            </div>
+          )}
+          
+          {totalPages > 1 && !isLoading && filteredLogs.length > 0 && (
+            <div className="flex items-center justify-between mt-4">
+              <div className="text-sm text-muted-foreground">
+                Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredLogs.length)} of {filteredLogs.length} events
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  Previous
+                </Button>
+                <div className="text-sm font-medium px-2">
+                  Page {currentPage} of {totalPages}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>

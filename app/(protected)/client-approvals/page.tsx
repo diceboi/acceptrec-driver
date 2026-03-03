@@ -1,10 +1,10 @@
 
 'use client';
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
-import { Plus, Send, Copy, CheckCircle, Clock, FileText, AlertTriangle } from "lucide-react";
+import { Plus, Send, Copy, CheckCircle, Clock, FileText, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -63,6 +63,8 @@ interface Client {
 export default function ClientApprovalsPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   const { data: batches, isLoading: batchesLoading } = useQuery<ApprovalBatch[]>({
     queryKey: ["/api/approval-batches"],
@@ -77,6 +79,17 @@ export default function ClientApprovalsPage() {
     if (statusFilter === "all") return true;
     return batch.status === statusFilter;
   }) || [];
+
+  // Reset page when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter]);
+
+  const totalPages = Math.ceil(filteredBatches.length / itemsPerPage);
+  const paginatedBatches = filteredBatches.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   // Calculate stats
   const totalBatches = batches?.length || 0;
@@ -221,7 +234,7 @@ export default function ClientApprovalsPage() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {filteredBatches.map((batch) => (
+          {paginatedBatches.map((batch) => (
             <Card key={batch.id} className="hover-elevate" data-testid={`card-batch-${batch.id}`}>
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
@@ -263,6 +276,37 @@ export default function ClientApprovalsPage() {
               </CardContent>
             </Card>
           ))}
+          
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-6 bg-card p-4 rounded-xl border">
+              <div className="text-sm text-muted-foreground">
+                Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredBatches.length)} of {filteredBatches.length} batches
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  Previous
+                </Button>
+                <div className="text-sm font-medium px-2">
+                  Page {currentPage} of {totalPages}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

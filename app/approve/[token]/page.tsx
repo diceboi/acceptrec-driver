@@ -350,15 +350,16 @@ function DriverTimesheetCard({ timesheet, token, batchClientName, batchData }: D
 
   const workedDays = dayData.filter(day =>
     day.client &&
-    day.client.trim() !== ""
-    // Relaxed check: include days even if client name doesn't perfectly match (legacy logic was strict)
-    // day.client.trim().toLowerCase() === batchClientName.trim().toLowerCase()
+    day.client.trim() !== "" &&
+    parseFloat(day.total || "0") > 0
+    // Only include days with actual hours logged (0-hour days skip the minimum rule)
   );
 
   const getTotalHours = () => {
     return workedDays.reduce((sum, day) => {
       const actualHours = parseFloat(day.total || "0");
-      const billableHours = Math.max(actualHours, minimumBillableHours);
+      // Skip minimum for 0-hour days
+      const billableHours = actualHours > 0 ? Math.max(actualHours, minimumBillableHours) : 0;
       return sum + billableHours;
     }, 0);
   };
@@ -427,8 +428,9 @@ function DriverTimesheetCard({ timesheet, token, batchClientName, batchData }: D
           <div className="space-y-3">
             {workedDays.map((day) => {
               const dayHours = parseFloat(day.total || "0");
-              const billableHours = Math.max(dayHours, minimumBillableHours);
-              const minimumApplied = billableHours > dayHours;
+              // Only apply minimum when actual hours > 0 (0-hour days are excluded above, but guard here too)
+              const billableHours = dayHours > 0 ? Math.max(dayHours, minimumBillableHours) : 0;
+              const minimumApplied = dayHours > 0 && billableHours > dayHours;
               const hasDiscrepancy = dayHours > 0 && dayHours < 8;
 
               return (

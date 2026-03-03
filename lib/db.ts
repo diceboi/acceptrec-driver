@@ -23,7 +23,7 @@ export const getDb = () => {
 
     const client = postgres(url, {
         ssl: 'require', 
-        max: 1, // Reduce pool for script stability
+        max: 5, // Increased pool to allow parallel requests locally
         idle_timeout: 20,
         connect_timeout: 30, // Increase timeout
     });

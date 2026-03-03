@@ -35,7 +35,9 @@ export async function GET() {
       .orderBy(desc(approvalBatches.createdAt));
 
     // For each batch, compute the real status from its timesheets
-    const enriched = await Promise.all(batches.map(async (batch) => {
+    // Process sequentially to avoid exhausting the DB connection pool (max: 5 locally)
+    const enriched = [];
+    for (const batch of batches) {
       // Get all timesheets linked to this batch via junction table
       const linked = await db
         .select({ approvalStatus: timesheets.approvalStatus })
@@ -52,7 +54,8 @@ export async function GET() {
             .where(eq(timesheets.batchId, batch.id));
 
       if (allTs.length === 0) {
-        return batch; // No timesheets yet, keep stored status
+        enriched.push(batch); // No timesheets yet, keep stored status
+        continue;
       }
 
       const statuses = allTs.map(t => t.approvalStatus);
@@ -80,8 +83,8 @@ export async function GET() {
           .where(eq(approvalBatches.id, batch.id));
       }
 
-      return { ...batch, status: computedStatus };
-    }));
+      enriched.push({ ...batch, status: computedStatus });
+    }
 
     return NextResponse.json(enriched);
   } catch (error) {

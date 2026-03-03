@@ -51,12 +51,6 @@ export async function GET() {
 
     const uniqueClients = Array.from(uniqueClientsMap.values());
 
-    console.log("API /clients Fetched (Unique):", uniqueClients.map(c => ({ 
-      id: c.id, 
-      name: c.companyName, 
-      email: c.email
-    })));
-
     return NextResponse.json(uniqueClients);
   } catch (error) {
     console.error('Error fetching clients:', error);

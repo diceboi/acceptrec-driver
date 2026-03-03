@@ -1,10 +1,10 @@
 
 'use client';
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Users, Shield, UserCog, Phone, Edit2, Trash2, Crown, Building2, Plus, Mail, Lock, Search } from "lucide-react";
+import { Users, Shield, UserCog, Phone, Edit2, Trash2, Crown, Building2, Plus, Mail, Lock, Search, ChevronLeft, ChevronRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -105,10 +105,10 @@ export default function UserManagementPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletingUser, setDeletingUser] = useState<{ userId: string; userName: string } | null>(null);
 
-  // Search
+  // Search and Pagination
   const [searchQuery, setSearchQuery] = useState("");
-
-
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 25;
   const { data: users, isLoading } = useQuery<User[]>({
     queryKey: ["/api/users"],
   });
@@ -123,6 +123,17 @@ export default function UserManagementPage() {
       u.role.toLowerCase().includes(q)
     );
   });
+
+  // Reset page when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
+
+  const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
+  const paginatedUsers = filteredUsers.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   const { data: clients } = useQuery<Client[]>({
     queryKey: ["/api/clients"],
@@ -470,6 +481,7 @@ export default function UserManagementPage() {
           </CardContent>
         </Card>
       ) : users && users.length > 0 ? (
+        <>
         <Card>
           <CardHeader>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -513,7 +525,7 @@ export default function UserManagementPage() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredUsers.map((user) => (
+                    paginatedUsers.map((user) => (
                       <TableRow key={user.id} data-testid={`row-user-${user.id}`}>
                         <TableCell>
                           <div className="flex items-center gap-3">
@@ -688,7 +700,38 @@ export default function UserManagementPage() {
             </TooltipProvider>
           </CardContent>
         </Card>
-
+        
+        {totalPages > 1 && !isLoading && filteredUsers.length > 0 && (
+          <div className="flex items-center justify-between mt-4 mx-2">
+            <div className="text-sm text-muted-foreground">
+              Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredUsers.length)} of {filteredUsers.length} users
+            </div>
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                Previous
+              </Button>
+              <div className="text-sm font-medium px-2">
+                Page {currentPage} of {totalPages}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+              >
+                Next
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            </div>
+          </div>
+        )}
+      </>
       ) : (
         <Card>
           <CardContent className="p-6">

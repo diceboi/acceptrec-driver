@@ -280,6 +280,8 @@ export default function ClientPortal() {
       const disableMin = (timesheet as any)[`${day}DisableMinHours`];
       if (dayTotal) {
         const actualHours = parseFloat(dayTotal) || 0;
+        // Skip minimum for 0-hour days (accidental submissions)
+        if (actualHours === 0) return;
         const billableHours = disableMin ? actualHours : Math.max(actualHours, minimumBillableHours);
         total += billableHours;
       }
@@ -492,9 +494,10 @@ export default function ClientPortal() {
                                 const minimumBillableHours = 8; // TODO: Get from client settings
                                 const actualHours = parseFloat(total || "0");
                                 const disableMin = (timesheet as any)[`${day}DisableMinHours`];
-                                const billableHours = disableMin ? actualHours : Math.max(actualHours, minimumBillableHours);
-                                const minimumApplied = !disableMin && hasWork && billableHours > actualHours;
-                                const minDisabled = disableMin && hasWork && actualHours < minimumBillableHours;
+                                // Skip minimum for 0-hour days (accidental submissions)
+                                const billableHours = (actualHours === 0) ? 0 : (disableMin ? actualHours : Math.max(actualHours, minimumBillableHours));
+                                const minimumApplied = !disableMin && hasWork && actualHours > 0 && billableHours > actualHours;
+                                const minDisabled = disableMin && hasWork && actualHours > 0 && actualHours < minimumBillableHours;
 
                                 return (
                                   <div
