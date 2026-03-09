@@ -71,8 +71,14 @@ export async function PATCH(
     const metadataUpdates: any = {};
     if (data.role) metadataUpdates.role = data.role;
     if (data.firstName || data.lastName) {
-      if (data.firstName) metadataUpdates.firstName = data.firstName;
-      if (data.lastName) metadataUpdates.lastName = data.lastName;
+      if (data.firstName) {
+        metadataUpdates.firstName = data.firstName;
+        metadataUpdates.first_name = data.firstName;
+      }
+      if (data.lastName) {
+        metadataUpdates.lastName = data.lastName;
+        metadataUpdates.last_name = data.lastName;
+      }
       if (updatedUser) {
         metadataUpdates.full_name = `${updatedUser.firstName} ${updatedUser.lastName}`;
       }

@@ -68,6 +68,8 @@ export async function POST(req: Request) {
         full_name: `${data.firstName} ${data.lastName}`,
         firstName: data.firstName,
         lastName: data.lastName,
+        first_name: data.firstName,
+        last_name: data.lastName,
         clientId: data.clientId,
       }
     });
