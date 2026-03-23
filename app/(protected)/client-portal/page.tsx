@@ -7,6 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -463,118 +471,145 @@ export default function ClientPortal() {
                   <Skeleton className="h-24" />
                 </div>
               ) : timesheets && timesheets.length > 0 ? (
-                <div className="space-y-4">
-                  {timesheets.map((timesheet) => (
-                    <Card key={timesheet.id} className="border" data-testid={`card-timesheet-${timesheet.id}`}>
-                      <CardContent className="pt-4">
-                        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-2">
-                              <FileText className="w-4 h-4 text-muted-foreground" />
-                              <span className="font-medium" data-testid={`text-driver-name-${timesheet.id}`}>
+                <div className="space-y-6">
+                  {timesheets.map((timesheet) => {
+                    const weekStart = parseISO(selectedBatch.weekStartDate);
+                    const minimumBillableHours = 8; // TODO: Get from client settings
+
+                    return (
+                    <Card key={timesheet.id} className="border shadow-sm" data-testid={`card-timesheet-${timesheet.id}`}>
+                      <CardHeader className="pb-3 border-b bg-muted/20">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <CardTitle className="text-lg flex items-center gap-2">
+                              <FileText className="w-5 h-5 text-muted-foreground" />
+                              <span data-testid={`text-driver-name-${timesheet.id}`}>
                                 {timesheet.driverName}
                               </span>
                               {getStatusBadge(timesheet.approvalStatus)}
-                            </div>
-                            <div className="text-sm text-muted-foreground mb-2">
-                              Total: {calculateTotalHours(timesheet)} hours
-                            </div>
-                            <div className="grid grid-cols-4 sm:grid-cols-7 gap-1 text-xs">
+                            </CardTitle>
+                          </div>
+                          <div className="text-right">
+                             <div className="font-semibold text-lg">{calculateTotalHours(timesheet, minimumBillableHours)}h</div>
+                             <div className="text-xs text-muted-foreground">Total Charge Hours</div>
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="p-0">
+                        <div className="overflow-x-auto">
+                          <Table>
+                            <TableHeader className="bg-muted/50">
+                              <TableRow>
+                                <TableHead className="w-[140px] whitespace-nowrap">Date</TableHead>
+                                <TableHead className="whitespace-nowrap">Start Time</TableHead>
+                                <TableHead className="whitespace-nowrap">End Time</TableHead>
+                                <TableHead className="whitespace-nowrap">Breaks</TableHead>
+                                <TableHead className="whitespace-nowrap">Hours</TableHead>
+                                <TableHead className="whitespace-nowrap">PoA</TableHead>
+                                <TableHead className="whitespace-nowrap">Other Work</TableHead>
+                                <TableHead className="whitespace-nowrap">Charge Hours</TableHead>
+                                <TableHead className="whitespace-nowrap">Nights Out?</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
                               {days.map((day, idx) => {
                                 const client = (timesheet as any)[`${day}Client`];
                                 const total = (timesheet as any)[`${day}Total`];
                                 const start = (timesheet as any)[`${day}Start`];
                                 const end = (timesheet as any)[`${day}End`];
-                                const hasWork = client && start && end;
+                                const breakMins = (timesheet as any)[`${day}Break`];
+                                const poa = (timesheet as any)[`${day}Poa`];
+                                const otherWork = (timesheet as any)[`${day}OtherWork`];
+                                const nightOut = (timesheet as any)[`${day}NightOut`];
+                                const expenseAmount = (timesheet as any)[`${day}ExpenseAmount`];
+                                const expenseReceipt = (timesheet as any)[`${day}ExpenseReceipt`];
 
-                                const weekStart = parseISO(selectedBatch.weekStartDate);
                                 const dayDate = addDays(weekStart, idx);
-
-                                // Calculate billable hours with minimum (default 8)
-                                const minimumBillableHours = 8; // TODO: Get from client settings
                                 const actualHours = parseFloat(total || "0");
                                 const disableMin = (timesheet as any)[`${day}DisableMinHours`];
-                                // Skip minimum for 0-hour days (accidental submissions)
                                 const billableHours = (actualHours === 0) ? 0 : (disableMin ? actualHours : Math.max(actualHours, minimumBillableHours));
-                                const minimumApplied = !disableMin && hasWork && actualHours > 0 && billableHours > actualHours;
-                                const minDisabled = disableMin && hasWork && actualHours > 0 && actualHours < minimumBillableHours;
+                                const minimumApplied = !disableMin && actualHours > 0 && billableHours > actualHours;
+                                const minDisabled = disableMin && actualHours > 0 && actualHours < minimumBillableHours;
+                                const hasDiscrepancy = actualHours > 0 && actualHours < 8 && !disableMin;
+                                
+                                if (!client && actualHours === 0) return null; // Skip days with no work
 
                                 return (
-                                  <div
-                                    key={day}
-                                    className={`text-center p-2 rounded space-y-0.5 ${hasWork ? 'bg-primary/10' : 'bg-muted/50'}`}
+                                  <TableRow 
+                                    key={day} 
+                                    className={hasDiscrepancy ? 'bg-destructive/5 hover:bg-destructive/10' : ''}
                                   >
-                                    {/* Day label */}
-                                    <div className="font-semibold text-xs">{dayLabels[idx]}</div>
-
-                                    {hasWork ? (
-                                      <>
-                                        {/* Date */}
-                                        <div className="text-[10px] text-muted-foreground hidden sm:block">
-                                          {format(dayDate, "MMM d")}
-                                        </div>
-
-                                        {/* Work hours */}
-                                        <div className="text-[10px] text-muted-foreground font-medium hidden sm:block">
-                                          {start} - {end}
-                                        </div>
-
-                                        {/* Billable hours - prominent */}
-                                        <div className="text-primary font-bold text-sm mt-1">
-                                          {billableHours.toFixed(2)}h
-                                        </div>
-
-                                        {/* Minimum applied indicator */}
+                                    <TableCell className="font-medium whitespace-nowrap">
+                                      <div className="flex flex-col">
+                                        <span>{dayLabels[idx]} {format(dayDate, "d MMM")}</span>
+                                        <span className="text-[10px] text-muted-foreground leading-tight truncate max-w-[120px]" title={client || ""}>{client}</span>
+                                        {hasDiscrepancy && (
+                                          <span className="text-[10px] text-destructive flex items-center gap-1 mt-1">
+                                            <AlertTriangle className="w-3 h-3" /> Under 8h
+                                          </span>
+                                        )}
+                                      </div>
+                                    </TableCell>
+                                    <TableCell>{start || "—"}</TableCell>
+                                    <TableCell>{end || "—"}</TableCell>
+                                    <TableCell>{breakMins ? `${breakMins}m` : "—"}</TableCell>
+                                    <TableCell>{actualHours.toFixed(2)}</TableCell>
+                                    <TableCell>{poa || "0"}</TableCell>
+                                    <TableCell>{otherWork || "0"}</TableCell>
+                                    <TableCell>
+                                      <div className="flex flex-col">
+                                        <span className="font-semibold">{billableHours.toFixed(2)}</span>
                                         {minimumApplied && (
-                                          <div
-                                            className="text-[9px] text-blue-600 dark:text-blue-400 font-medium hidden sm:block"
-                                            title={`Actual: ${actualHours.toFixed(2)}h, Billable: ${billableHours.toFixed(2)}h`}
-                                          >
-                                            Min applied
-                                          </div>
+                                          <span className="text-[10px] text-blue-600 dark:text-blue-400 leading-tight">
+                                             Min applied
+                                          </span>
                                         )}
-
                                         {minDisabled && (
-                                          <div
-                                            className="text-[9px] text-orange-600 dark:text-orange-400 font-medium hidden sm:block"
-                                            title={`Actual: ${actualHours.toFixed(2)}h, Min (8h) disabled`}
-                                          >
-                                            Min disabled
-                                          </div>
+                                          <span className="text-[10px] text-orange-600 dark:text-orange-400 leading-tight">
+                                             Min disabled
+                                          </span>
                                         )}
-
-                                          {/* Expense info */}
-                                          {(timesheet as any)[`${day}ExpenseAmount`] > 0 && (
-                                            <div className="text-[10px] text-red-600 dark:text-red-400 font-medium hidden sm:block mt-1">
-                                              Exp: €{parseFloat((timesheet as any)[`${day}ExpenseAmount`]).toFixed(2)}
+                                      </div>
+                                    </TableCell>
+                                    <TableCell>
+                                      {(nightOut === "true" || (expenseAmount && parseFloat(expenseAmount) > 0)) ? (
+                                        <div className="flex flex-col gap-1 text-xs whitespace-nowrap">
+                                          {nightOut === "true" && <span className="text-blue-600 font-medium">Yes</span>}
+                                          {expenseAmount && parseFloat(expenseAmount) > 0 && (
+                                            <div className="flex flex-col">
+                                              <span>£{parseFloat(expenseAmount).toFixed(2)} <span className="text-muted-foreground text-[10px]">exp</span></span>
+                                              {expenseReceipt && (
+                                                <a 
+                                                  href={expenseReceipt.startsWith('http') || expenseReceipt.startsWith('/') ? expenseReceipt : `/${expenseReceipt}`}
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                  className="text-[9px] text-blue-600 hover:underline"
+                                                  onClick={(e) => e.stopPropagation()}
+                                                >
+                                                  Receipt
+                                                </a>
+                                              )}
                                             </div>
                                           )}
-                                          {(timesheet as any)[`${day}ExpenseReceipt`] && (
-                                            <a 
-                                              href={(timesheet as any)[`${day}ExpenseReceipt`].startsWith('http') || (timesheet as any)[`${day}ExpenseReceipt`].startsWith('/') ? (timesheet as any)[`${day}ExpenseReceipt`] : `/${(timesheet as any)[`${day}ExpenseReceipt`]}`}
-                                              target="_blank"
-                                              rel="noopener noreferrer"
-                                              className="text-[9px] text-blue-600 hover:underline block mt-0.5"
-                                              onClick={(e) => e.stopPropagation()}
-                                            >
-                                              View Receipt
-                                            </a>
-                                          )}
-
-                                          {/* Client name */}
-                                        <div className="text-[10px] text-muted-foreground truncate hidden sm:block mt-1" title={client}>
-                                          {client}
                                         </div>
-                                      </>
-                                    ) : (
-                                      <div className="text-muted-foreground text-sm py-4">-</div>
-                                    )}
-                                  </div>
+                                      ) : "No"}
+                                    </TableCell>
+                                  </TableRow>
                                 );
                               })}
-                            </div>
+                            </TableBody>
+                          </Table>
+                        </div>
+                        
+                        <div className="p-4 bg-muted/10 border-t flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                          <div className="flex-1">
+                            {timesheet.clientComments && (
+                              <div className="text-sm">
+                                <span className="font-medium">Comments:</span> <span className="text-muted-foreground">{timesheet.clientComments}</span>
+                              </div>
+                            )}
                           </div>
-                          <div className="flex flex-col xs:flex-row items-stretch sm:items-start justify-end gap-2 mt-3 sm:mt-0">
+                          <div className="flex flex-wrap items-center justify-end gap-2">
                             {timesheet.approvalStatus === 'pending_approval' ? (
                               <>
                                 <Button
@@ -582,7 +617,6 @@ export default function ClientPortal() {
                                   size="sm"
                                   onClick={() => openRejectDialog(timesheet)}
                                   data-testid={`button-reject-${timesheet.id}`}
-                                  className="w-fit sm:w-auto"
                                 >
                                   <XCircle className="w-4 h-4 mr-1" />
                                   Reject
@@ -592,14 +626,13 @@ export default function ClientPortal() {
                                   size="sm"
                                   onClick={() => openEditDialog(timesheet)}
                                   data-testid={`button-edit-${timesheet.id}`}
-                                  className="w-fit sm:w-auto"
                                 >
                                   <Pencil className="w-4 h-4 mr-1" />
                                   Edit
                                 </Button>
                                 <Button
                                   size="sm"
-                                  className="bg-green-600 hover:bg-green-700 text-white w-fit sm:w-auto"
+                                  className="bg-green-600 hover:bg-green-700 text-white"
                                   onClick={() => openApproveDialog(timesheet)}
                                   data-testid={`button-approve-${timesheet.id}`}
                                 >
@@ -616,16 +649,9 @@ export default function ClientPortal() {
                             )}
                           </div>
                         </div>
-                        {timesheet.clientComments && (
-                          <div className="mt-3 pt-3 border-t">
-                            <p className="text-sm text-muted-foreground">
-                              <span className="font-medium">Comments:</span> {timesheet.clientComments}
-                            </p>
-                          </div>
-                        )}
                       </CardContent>
                     </Card>
-                  ))}
+                  )})}
                 </div>
               ) : (
                 <div className="text-center py-8 text-muted-foreground">

@@ -16,6 +16,14 @@ import { useState } from "react";
 import { apiRequest } from "@/lib/queryClient";
 import { Badge } from "@/components/ui/badge";
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -425,95 +433,99 @@ function DriverTimesheetCard({ timesheet, token, batchClientName, batchData }: D
         {workedDays.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-4">No hours logged this week</p>
         ) : (
-          <div className="space-y-3">
-            {workedDays.map((day) => {
-              const dayHours = parseFloat(day.total || "0");
-              // Only apply minimum when actual hours > 0 (0-hour days are excluded above, but guard here too)
-              const billableHours = dayHours > 0 ? Math.max(dayHours, minimumBillableHours) : 0;
-              const minimumApplied = dayHours > 0 && billableHours > dayHours;
-              const hasDiscrepancy = dayHours > 0 && dayHours < 8;
+          <div className="rounded-md border overflow-x-auto">
+            <Table>
+              <TableHeader className="bg-muted/50">
+                <TableRow>
+                  <TableHead className="w-[140px] whitespace-nowrap">Date</TableHead>
+                  <TableHead className="whitespace-nowrap">Start Time</TableHead>
+                  <TableHead className="whitespace-nowrap">End Time</TableHead>
+                  <TableHead className="whitespace-nowrap">Breaks</TableHead>
+                  <TableHead className="whitespace-nowrap">Hours</TableHead>
+                  <TableHead className="whitespace-nowrap">PoA</TableHead>
+                  <TableHead className="whitespace-nowrap">Other Work</TableHead>
+                  <TableHead className="whitespace-nowrap">Charge Hours</TableHead>
+                  <TableHead className="whitespace-nowrap">Nights Out?</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {workedDays.map((day) => {
+                  const dayHours = parseFloat(day.total || "0");
+                  // Only apply minimum when actual hours > 0 (0-hour days are excluded above, but guard here too)
+                  const billableHours = dayHours > 0 ? Math.max(dayHours, minimumBillableHours) : 0;
+                  const minimumApplied = dayHours > 0 && billableHours > dayHours;
+                  const hasDiscrepancy = dayHours > 0 && dayHours < 8;
 
-              return (
-                <div
-                  key={day.name}
-                  className={`border rounded-md p-4 space-y-2 ${hasDiscrepancy ? 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800' : 'bg-muted/30'}`}
-                >
-                  <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-2">
-                      <div>
-                        <p className="font-semibold text-sm">{day.name}</p>
-                        <p className="text-xs text-muted-foreground">{format(day.date, "MMM d")}</p>
-                        <p className="text-xs text-muted-foreground">{day.client}</p>
-                      </div>
-                      {hasDiscrepancy && (
-                        <Badge variant="destructive" className="text-xs gap-1">
-                          <AlertCircle className="w-3 h-3" />
-                          Under 8h
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="text-right">
-                      <Badge variant="secondary" className="font-semibold">
-                        {billableHours.toFixed(2)}h total
-                      </Badge>
-                      {minimumApplied && (
-                        <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                          Min. applied ({dayHours.toFixed(2)}h → {billableHours.toFixed(2)}h)
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-xs pt-2 border-t">
-                    <div>
-                      <p className="text-muted-foreground">Start</p>
-                      <p className="font-medium">{day.start || "—"}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">End</p>
-                      <p className="font-medium">{day.end || "—"}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Break</p>
-                      <p className="font-medium">{day.break || "—"}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">POA</p>
-                      <p className="font-medium">{day.poa || "0"}h</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Other</p>
-                      <p className="font-medium">{day.otherWork || "0"}h</p>
-                    </div>
-                  </div>
-
-                  {(day.nightOut === "true" || (day.expenseAmount && parseFloat(day.expenseAmount) > 0)) && (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs pt-2 border-t">
-                      {day.nightOut === "true" && (
-                        <div>
-                          <p className="text-muted-foreground">Night Out</p>
-                          <p className="font-medium text-blue-600">✓ Yes</p>
-                        </div>
-                      )}
-                      {day.expenseAmount && parseFloat(day.expenseAmount) > 0 && (
-                        <>
-                          <div>
-                            <p className="text-muted-foreground">Expense Amount</p>
-                            <p className="font-medium">£{parseFloat(day.expenseAmount).toFixed(2)}</p>
-                          </div>
-                          {day.expenseReceipt && (
-                            <div>
-                              <p className="text-muted-foreground">Receipt</p>
-                              <p className="font-medium truncate text-blue-600">{day.expenseReceipt}</p>
-                            </div>
+                  return (
+                    <TableRow 
+                      key={day.name} 
+                      className={hasDiscrepancy ? 'bg-destructive/5 hover:bg-destructive/10' : ''}
+                    >
+                      <TableCell className="font-medium whitespace-nowrap">
+                        <div className="flex flex-col">
+                          <span>{day.name.substring(0, 3)} {format(day.date, "d MMM")}</span>
+                          <span className="text-[10px] text-muted-foreground leading-tight truncate max-w-[120px]" title={day.client || ""}>{day.client}</span>
+                          {hasDiscrepancy && (
+                            <span className="text-[10px] text-destructive flex items-center gap-1 mt-1">
+                              <AlertCircle className="w-3 h-3" /> Under 8h
+                            </span>
                           )}
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                        </div>
+                      </TableCell>
+                      <TableCell>{day.start || "—"}</TableCell>
+                      <TableCell>{day.end || "—"}</TableCell>
+                      <TableCell>{day.break ? `${day.break}m` : "—"}</TableCell>
+                      <TableCell>{dayHours.toFixed(2)}</TableCell>
+                      <TableCell>{day.poa || "0"}</TableCell>
+                      <TableCell>{day.otherWork || "0"}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="font-semibold">{billableHours.toFixed(2)}</span>
+                          {minimumApplied && (
+                            <span className="text-[10px] text-blue-600 dark:text-blue-400 leading-tight">
+                               Min applied
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {(day.nightOut === "true" || (day.expenseAmount && parseFloat(day.expenseAmount) > 0)) ? (
+                          <div className="flex flex-col gap-1 text-xs whitespace-nowrap">
+                            {day.nightOut === "true" && <span className="text-blue-600 font-medium">Yes</span>}
+                            {day.expenseAmount && parseFloat(day.expenseAmount) > 0 && (
+                              <span>£{parseFloat(day.expenseAmount).toFixed(2)} <span className="text-muted-foreground text-[10px]">exp</span></span>
+                            )}
+                          </div>
+                        ) : "No"}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+                <TableRow className="bg-primary hover:bg-primary/90 text-primary-foreground border-t-2 border-primary">
+                  <TableCell className="font-bold">Total</TableCell>
+                  <TableCell></TableCell>
+                  <TableCell></TableCell>
+                  <TableCell className="font-semibold text-xs">
+                    {workedDays.reduce((sum, day) => sum + parseInt(day.break || "0"), 0)}m
+                  </TableCell>
+                  <TableCell className="font-bold text-sm">
+                    {workedDays.reduce((sum, day) => sum + parseFloat(day.total || "0"), 0).toFixed(2)}h
+                  </TableCell>
+                  <TableCell className="font-semibold text-xs">
+                    {workedDays.reduce((sum, day) => sum + parseFloat(day.poa || "0"), 0).toFixed(2)}h
+                  </TableCell>
+                  <TableCell className="font-semibold text-xs">
+                    {workedDays.reduce((sum, day) => sum + parseFloat(day.otherWork || "0"), 0).toFixed(2)}h
+                  </TableCell>
+                  <TableCell className="font-bold text-sm">
+                    {getTotalHours().toFixed(2)}h
+                  </TableCell>
+                  <TableCell className="font-semibold text-xs">
+                    {workedDays.filter(day => day.nightOut === "true").length}
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
           </div>
         )}
 
