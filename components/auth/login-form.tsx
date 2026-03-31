@@ -60,6 +60,7 @@ export function LoginForm({ onRegisterClick, onForgotPasswordClick }: LoginFormP
                     <Label htmlFor="login-password">Password</Label>
                     {onForgotPasswordClick && (
                         <Button
+                            type="button"
                             variant="link"
                             className="p-0 h-auto font-normal text-xs text-muted-foreground"
                             onClick={(e) => {
