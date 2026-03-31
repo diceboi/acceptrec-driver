@@ -11,9 +11,10 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface LoginFormProps {
     onRegisterClick?: () => void;
+    onForgotPasswordClick?: () => void;
 }
 
-export function LoginForm({ onRegisterClick }: LoginFormProps) {
+export function LoginForm({ onRegisterClick, onForgotPasswordClick }: LoginFormProps) {
     const router = useRouter();
     const supabase = createClient();
     const [email, setEmail] = useState('');
@@ -55,7 +56,21 @@ export function LoginForm({ onRegisterClick }: LoginFormProps) {
                 />
             </div>
             <div className="space-y-2">
-                <Label htmlFor="login-password">Password</Label>
+                <div className="flex items-center justify-between">
+                    <Label htmlFor="login-password">Password</Label>
+                    {onForgotPasswordClick && (
+                        <Button
+                            variant="link"
+                            className="p-0 h-auto font-normal text-xs text-muted-foreground"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                onForgotPasswordClick();
+                            }}
+                        >
+                            Forgot password?
+                        </Button>
+                    )}
+                </div>
                 <Input
                     id="login-password"
                     type="password"
