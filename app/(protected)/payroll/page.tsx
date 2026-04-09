@@ -68,6 +68,7 @@ export default function PayrollPage() {
   const { user, isLoading: authLoading } = useAuth();
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [payrollEmail, setPayrollEmail] = useState("");
+  const [chargeRate, setChargeRate] = useState("");
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
 
   const { data: timesheets, isLoading: timesheetsLoading } = useQuery<Timesheet[]>({
@@ -126,10 +127,10 @@ export default function PayrollPage() {
   };
 
   const sendEmailMutation = useMutation({
-    mutationFn: async (email: string) => {
+    mutationFn: async ({ email, rate }: { email: string, rate: string }) => {
       const response = await fetch("/api/payroll/send", {
         method: "POST",
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, chargeRate: rate }),
         headers: { "Content-Type": "application/json" },
       });
       if (!response.ok) {
@@ -142,6 +143,7 @@ export default function PayrollPage() {
       toast.success("Payroll report has been sent successfully.");
       setEmailDialogOpen(false);
       setPayrollEmail("");
+      setChargeRate("");
     },
     onError: (error: Error) => {
       toast.error(error.message);
@@ -153,7 +155,11 @@ export default function PayrollPage() {
       toast.error("Please enter a valid email address");
       return;
     }
-    sendEmailMutation.mutate(payrollEmail);
+    if (!chargeRate || isNaN(parseFloat(chargeRate))) {
+      toast.error("Please enter a valid charge rate");
+      return;
+    }
+    sendEmailMutation.mutate({ email: payrollEmail, rate: chargeRate });
   };
 
   const toggleRow = (key: string) => {
@@ -335,6 +341,17 @@ export default function PayrollPage() {
                     placeholder="payroll@company.com"
                     value={payrollEmail}
                     onChange={(e) => setPayrollEmail(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="charge-rate">Charge Rate (£/hr)</Label>
+                  <Input
+                    id="charge-rate"
+                    type="number"
+                    step="0.01"
+                    placeholder="e.g. 15.50"
+                    value={chargeRate}
+                    onChange={(e) => setChargeRate(e.target.value)}
                   />
                 </div>
                 <Button 
