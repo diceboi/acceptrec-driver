@@ -1,28 +1,39 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { timesheets, clients } from "@/shared/schema";
-import { eq, desc } from "drizzle-orm";
+import { timesheets, clients, driverClasses, driverClassRates } from "@/shared/schema";
+import { eq, desc, isNull, and } from "drizzle-orm";
 import ExcelJS from 'exceljs';
 import { Resend } from 'resend';
 import { format, parseISO, addDays } from "date-fns";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+// Class assignments: timesheetId -> day -> classId
+type ClassAssignments = Record<string, Record<string, string>>;
+
 export async function POST(req: Request) {
   try {
-    const { email, chargeRate } = await req.json();
+    const { email, fallbackChargeRate, chargeRate, classAssignments = {} } = await req.json() as {
+      email: string;
+      fallbackChargeRate?: string;
+      chargeRate?: string; // backward compat
+      classAssignments?: ClassAssignments;
+    };
 
     if (!email || !email.includes('@')) {
       return NextResponse.json({ message: "Invalid email address" }, { status: 400 });
     }
 
-    const rate = parseFloat(chargeRate || "0");
+    const fallbackRate = parseFloat(fallbackChargeRate || chargeRate || "0");
 
     // 1. Fetch all approved timesheets
     const approvedTimesheets = await db
       .select()
       .from(timesheets)
-      .where(eq(timesheets.approvalStatus, "approved"))
+      .where(and(
+        eq(timesheets.approvalStatus, "approved"),
+        isNull(timesheets.deletedAt)
+      ))
       .orderBy(desc(timesheets.weekStartDate));
 
     if (approvedTimesheets.length === 0) {
@@ -30,15 +41,44 @@ export async function POST(req: Request) {
     }
 
     // 2. Fetch clients to get minimum billable hours
-    const allClients = await db.select().from(clients);
+    const allClients = await db.select().from(clients).where(isNull(clients.deletedAt));
     const clientMap = new Map(allClients.map(c => [c.companyName.toLowerCase().trim(), c]));
+    const clientIdMap = new Map(allClients.map(c => [c.id, c]));
 
     const getClientMinHours = (name: string): number => {
       const client = clientMap.get(name.toLowerCase().trim());
       return client?.minimumBillableHours ?? 8;
     };
 
-    // 3. Process Data into hierarchical structure (Week -> Client -> Drivers[])
+    // Find client ID by name (fuzzy)
+    const findClientId = (name: string): string | null => {
+      const client = clientMap.get(name.toLowerCase().trim());
+      if (client) return client.id;
+      // Fuzzy match
+      for (const [, c] of clientMap) {
+        if (c.companyName.toLowerCase().includes(name.toLowerCase()) || name.toLowerCase().includes(c.companyName.toLowerCase())) {
+          return c.id;
+        }
+      }
+      return null;
+    };
+
+    // 3. Fetch all driver classes and rates
+    const allDriverClasses = await db.select().from(driverClasses).where(isNull(driverClasses.deletedAt));
+    const classNameMap = new Map(allDriverClasses.map(dc => [dc.id, dc.name]));
+
+    const allRates = await db.select().from(driverClassRates);
+    // Map: classId-clientId -> hourlyRate
+    const rateMap = new Map(allRates.map(r => [`${r.driverClassId}-${r.clientId}`, r.hourlyRate]));
+
+    const getClassRateForClient = (classId: string, clientName: string): number | null => {
+      const clientId = findClientId(clientName);
+      if (!clientId) return null;
+      const key = `${classId}-${clientId}`;
+      return rateMap.get(key) ?? null;
+    };
+
+    // 4. Process Data into hierarchical structure (Week -> Client -> Drivers[])
     const weeks = new Map<string, Map<string, any[]>>();
 
     approvedTimesheets.forEach(ts => {
@@ -49,16 +89,16 @@ export async function POST(req: Request) {
       const weekClients = weeks.get(weekStart)!;
 
       const days = [
-        { name: "Sunday", dayIndex: 0, client: ts.sundayClient, total: ts.sundayTotal, start: ts.sundayStart, end: ts.sundayEnd, break: ts.sundayBreak, poa: ts.sundayPoa, otherWork: ts.sundayOtherWork, nightOut: ts.sundayNightOut },
-        { name: "Monday", dayIndex: 1, client: ts.mondayClient, total: ts.mondayTotal, start: ts.mondayStart, end: ts.mondayEnd, break: ts.mondayBreak, poa: ts.mondayPoa, otherWork: ts.mondayOtherWork, nightOut: ts.mondayNightOut },
-        { name: "Tuesday", dayIndex: 2, client: ts.tuesdayClient, total: ts.tuesdayTotal, start: ts.tuesdayStart, end: ts.tuesdayEnd, break: ts.tuesdayBreak, poa: ts.tuesdayPoa, otherWork: ts.tuesdayOtherWork, nightOut: ts.tuesdayNightOut },
-        { name: "Wednesday", dayIndex: 3, client: ts.wednesdayClient, total: ts.wednesdayTotal, start: ts.wednesdayStart, end: ts.wednesdayEnd, break: ts.wednesdayBreak, poa: ts.wednesdayPoa, otherWork: ts.wednesdayOtherWork, nightOut: ts.wednesdayNightOut },
-        { name: "Thursday", dayIndex: 4, client: ts.thursdayClient, total: ts.thursdayTotal, start: ts.thursdayStart, end: ts.thursdayEnd, break: ts.thursdayBreak, poa: ts.thursdayPoa, otherWork: ts.thursdayOtherWork, nightOut: ts.thursdayNightOut },
-        { name: "Friday", dayIndex: 5, client: ts.fridayClient, total: ts.fridayTotal, start: ts.fridayStart, end: ts.fridayEnd, break: ts.fridayBreak, poa: ts.fridayPoa, otherWork: ts.fridayOtherWork, nightOut: ts.fridayNightOut },
-        { name: "Saturday", dayIndex: 6, client: ts.saturdayClient, total: ts.saturdayTotal, start: ts.saturdayStart, end: ts.saturdayEnd, break: ts.saturdayBreak, poa: ts.saturdayPoa, otherWork: ts.saturdayOtherWork, nightOut: ts.saturdayNightOut },
+        { name: "Sunday", dayKey: "sunday", dayIndex: 0, client: ts.sundayClient, total: ts.sundayTotal, start: ts.sundayStart, end: ts.sundayEnd, break: ts.sundayBreak, poa: ts.sundayPoa, otherWork: ts.sundayOtherWork, nightOut: ts.sundayNightOut },
+        { name: "Monday", dayKey: "monday", dayIndex: 1, client: ts.mondayClient, total: ts.mondayTotal, start: ts.mondayStart, end: ts.mondayEnd, break: ts.mondayBreak, poa: ts.mondayPoa, otherWork: ts.mondayOtherWork, nightOut: ts.mondayNightOut },
+        { name: "Tuesday", dayKey: "tuesday", dayIndex: 2, client: ts.tuesdayClient, total: ts.tuesdayTotal, start: ts.tuesdayStart, end: ts.tuesdayEnd, break: ts.tuesdayBreak, poa: ts.tuesdayPoa, otherWork: ts.tuesdayOtherWork, nightOut: ts.tuesdayNightOut },
+        { name: "Wednesday", dayKey: "wednesday", dayIndex: 3, client: ts.wednesdayClient, total: ts.wednesdayTotal, start: ts.wednesdayStart, end: ts.wednesdayEnd, break: ts.wednesdayBreak, poa: ts.wednesdayPoa, otherWork: ts.wednesdayOtherWork, nightOut: ts.wednesdayNightOut },
+        { name: "Thursday", dayKey: "thursday", dayIndex: 4, client: ts.thursdayClient, total: ts.thursdayTotal, start: ts.thursdayStart, end: ts.thursdayEnd, break: ts.thursdayBreak, poa: ts.thursdayPoa, otherWork: ts.thursdayOtherWork, nightOut: ts.thursdayNightOut },
+        { name: "Friday", dayKey: "friday", dayIndex: 5, client: ts.fridayClient, total: ts.fridayTotal, start: ts.fridayStart, end: ts.fridayEnd, break: ts.fridayBreak, poa: ts.fridayPoa, otherWork: ts.fridayOtherWork, nightOut: ts.fridayNightOut },
+        { name: "Saturday", dayKey: "saturday", dayIndex: 6, client: ts.saturdayClient, total: ts.saturdayTotal, start: ts.saturdayStart, end: ts.saturdayEnd, break: ts.saturdayBreak, poa: ts.saturdayPoa, otherWork: ts.saturdayOtherWork, nightOut: ts.saturdayNightOut },
       ];
 
-      // Figure out which clients this driver worked for in this week
+      // Figure out which clients this driver worked for
       const clientNamesForDriver = new Set<string>();
       days.forEach(day => {
         if (day.client && parseFloat(day.total || "0") > 0) {
@@ -73,7 +113,6 @@ export async function POST(req: Request) {
         
         const clientDrivers = weekClients.get(clientName)!;
         
-        // Filter days specifically for this client to build driver's table
         const minHours = getClientMinHours(clientName);
         const workedDays = days.filter(d => d.client && d.client.trim() === clientName && parseFloat(d.total || "0") > 0);
         
@@ -84,11 +123,27 @@ export async function POST(req: Request) {
         let totalPoa = 0;
         let totalOther = 0;
         let totalNightsOut = 0;
+        let totalClassRevenue = 0;
         
         const dayRows = workedDays.map(day => {
           const actualHours = parseFloat(day.total || "0");
           const billableHours = Math.max(actualHours, minHours);
           const hasDiscrepancy = actualHours > 0 && actualHours < 8;
+          
+          // Look up class assignment for this timesheet + day
+          const assignedClassId = classAssignments[ts.id]?.[day.dayKey] || "";
+          const className = assignedClassId ? (classNameMap.get(assignedClassId) ?? "") : "";
+          let dayRate = fallbackRate;
+          
+          if (assignedClassId) {
+            const classRate = getClassRateForClient(assignedClassId, clientName);
+            if (classRate !== null) {
+              dayRate = classRate;
+            }
+          }
+          
+          const dayRevenue = billableHours * dayRate;
+          totalClassRevenue += dayRevenue;
           
           totalBillable += billableHours;
           totalActual += actualHours;
@@ -104,13 +159,17 @@ export async function POST(req: Request) {
             billableHours,
             hasDiscrepancy,
             minApplied: billableHours > actualHours,
-            date: addDays(parseISO(ts.weekStartDate), day.dayIndex)
+            date: addDays(parseISO(ts.weekStartDate), day.dayIndex),
+            className,
+            dayRate,
+            dayRevenue,
           };
         });
 
         if (dayRows.length > 0) {
           clientDrivers.push({
             driverName: ts.driverName,
+            timesheetId: ts.id,
             approvalStatus: ts.approvalStatus,
             clientApprovedBy: ts.clientApprovedBy,
             clientApprovedAt: ts.clientApprovedAt,
@@ -123,21 +182,21 @@ export async function POST(req: Request) {
             totalPoa,
             totalOther,
             totalNightsOut,
+            totalClassRevenue,
             discrepancies
           });
         }
       });
     });
 
-    // 4. Generate ExcelJS Workbook
+    // 5. Generate ExcelJS Workbook
     const workbook = new ExcelJS.Workbook();
     workbook.creator = 'Accept Recruitment';
     workbook.created = new Date();
 
-    weeks.forEach((clientMap, weekStartDate) => {
-      clientMap.forEach((drivers, clientName) => {
-        // Create a unique sheet name for each client per week
-        const sheetName = `${clientName.substring(0, 15)}_${format(parseISO(weekStartDate), "MMM d")}`.replace(/[\*\?\/\\\[\]]/g, '');
+    weeks.forEach((clientMap2, weekStartDate) => {
+      clientMap2.forEach((drivers, clientName) => {
+        const sheetName = `${clientName.substring(0, 15)}_${format(parseISO(weekStartDate), "MMM d")}`.replace(/[*?/\\[\]]/g, '');
         const ws = workbook.addWorksheet(sheetName);
         
         ws.columns = [
@@ -149,31 +208,34 @@ export async function POST(req: Request) {
           { width: 10 }, // PoA
           { width: 12 }, // Other
           { width: 15 }, // Charge Hours
+          { width: 18 }, // Class
+          { width: 12 }, // Rate
           { width: 12 }, // Nights Out
         ];
 
         // Overall Client Header
         ws.addRow(["Driver Timesheet Approval"]);
-        ws.getCell('A1').font = { size: 20, bold: true, color: { argb: 'FF00008B' } }; // Dark blue
-        ws.getCell('I1').value = `PO Number: _________________`;
-        ws.getCell('I1').font = { size: 12, bold: true };
-        ws.getCell('I1').alignment = { horizontal: 'right' };
+        ws.getCell('A1').font = { size: 20, bold: true, color: { argb: 'FF00008B' } };
+        ws.getCell('K1').value = `PO Number: _________________`;
+        ws.getCell('K1').font = { size: 12, bold: true };
+        ws.getCell('K1').alignment = { horizontal: 'right' };
         ws.addRow([`Client: ${clientName} | Week of ${format(parseISO(weekStartDate), "MMMM d, yyyy")}`]);
         ws.getCell('A2').font = { size: 14 };
-        if (rate > 0) {
-          ws.addRow([`Charge Rate: £${rate.toFixed(2)}/hr`]);
+        
+        if (fallbackRate > 0) {
+          ws.addRow([`Fallback Charge Rate: £${fallbackRate.toFixed(2)}/hr`]);
           ws.getCell('A3').font = { size: 12, italic: true };
           ws.addRow([]);
         } else {
           ws.addRow([]);
         }
 
-        let currentRow = rate > 0 ? 5 : 4;
+        let currentRow = fallbackRate > 0 ? 5 : 4;
         let totalRevenueSum = 0;
 
         drivers.forEach(driver => {
           // Driver Header Info
-          const driverTitleRow = ws.addRow([driver.driverName, '', '', '', '', '', '', '', driver.approvalStatus === 'approved' ? 'Approved' : '']);
+          const driverTitleRow = ws.addRow([driver.driverName, '', '', '', '', '', '', '', '', '', driver.approvalStatus === 'approved' ? 'Approved' : '']);
           ws.mergeCells(`A${currentRow}:D${currentRow}`);
           ws.getCell(`A${currentRow}`).font = { size: 16, bold: true };
           
@@ -183,8 +245,8 @@ export async function POST(req: Request) {
           }
 
           if (driver.approvalStatus === 'approved') {
-             ws.getCell(`I${currentRow}`).font = { color: { argb: 'FF008000' }, bold: true };
-             ws.getCell(`I${currentRow}`).alignment = { horizontal: 'right' };
+             ws.getCell(`K${currentRow}`).font = { color: { argb: 'FF008000' }, bold: true };
+             ws.getCell(`K${currentRow}`).alignment = { horizontal: 'right' };
           }
           currentRow++;
 
@@ -192,10 +254,10 @@ export async function POST(req: Request) {
           ws.getCell(`A${currentRow}`).font = { bold: true };
           currentRow++;
 
-          // Table Header
-          const headerRow = ws.addRow(['Date', 'Start Time', 'End Time', 'Breaks', 'Hours', 'PoA', 'Other Work', 'Charge Hours', 'Nights Out?']);
+          // Table Header — now with Class and Rate columns
+          const headerRow = ws.addRow(['Date', 'Start Time', 'End Time', 'Breaks', 'Hours', 'PoA', 'Other Work', 'Charge Hours', 'Class', 'Rate (£/hr)', 'Nights Out?']);
           headerRow.font = { bold: true };
-          headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F4F6' } }; // muted grey
+          headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F4F6' } };
           currentRow++;
 
           // Data Rows
@@ -209,37 +271,45 @@ export async function POST(req: Request) {
               day.poa || "0",
               day.otherWork || "0",
               day.billableHours.toFixed(2),
+              day.className || "—",
+              day.dayRate > 0 ? `£${day.dayRate.toFixed(2)}` : "—",
               day.nightOut === "true" ? "Yes" : "No"
             ]);
             
             if (day.hasDiscrepancy) {
-               tableRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEBEB' } }; // light red
+               tableRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEBEB' } };
             }
             if (day.minApplied) {
-               ws.getCell(`H${currentRow}`).font = { color: { argb: 'FF0000FF' } }; // highlight blue
+               ws.getCell(`H${currentRow}`).font = { color: { argb: 'FF0000FF' } };
                ws.getCell(`H${currentRow}`).note = 'Minimum Billable Applied';
+            }
+            // Highlight class column if a class is set
+            if (day.className) {
+              ws.getCell(`I${currentRow}`).font = { bold: true, color: { argb: 'FF006400' } };
+              ws.getCell(`J${currentRow}`).font = { bold: true, color: { argb: 'FF006400' } };
             }
             currentRow++;
           });
 
           // Table Total Row
           const totalRow = ws.addRow([
-            'Total', '', '', `${driver.totalBreaks}m`, `${driver.totalActual.toFixed(2)}h`, `${driver.totalPoa.toFixed(2)}h`, `${driver.totalOther.toFixed(2)}h`, `${driver.totalBillable.toFixed(2)}h`, driver.totalNightsOut
+            'Total', '', '', `${driver.totalBreaks}m`, `${driver.totalActual.toFixed(2)}h`, `${driver.totalPoa.toFixed(2)}h`, `${driver.totalOther.toFixed(2)}h`, `${driver.totalBillable.toFixed(2)}h`, '', '', driver.totalNightsOut
           ]);
           totalRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-          totalRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF000080' } }; // Navy blue
+          totalRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF000080' } };
           currentRow++;
 
-          if (rate > 0) {
-            const extraNightOutMoney = driver.totalNightsOut * 25;
-            const revenue = (driver.totalBillable * rate) + extraNightOutMoney;
-            totalRevenueSum += revenue;
-            
+          // Revenue calculation — use per-day class rates
+          const extraNightOutMoney = driver.totalNightsOut * 25;
+          const driverRevenue = driver.totalClassRevenue + extraNightOutMoney;
+          totalRevenueSum += driverRevenue;
+          
+          if (driverRevenue > 0) {
             const breakDownStr = driver.totalNightsOut > 0 
-                ? `(Rate * Charge Hours) + (${driver.totalNightsOut} Night Out(s) * £25)`
-                : `(Rate * Charge Hours)`;
+                ? `(Per-day Rate * Charge Hours) + (${driver.totalNightsOut} Night Out(s) * £25)`
+                : `(Per-day Rate * Charge Hours)`;
                 
-            const revRow = ws.addRow([`Total Invoiced for Driver ${breakDownStr}`, '', '', '', '', '', '', `£${revenue.toFixed(2)}`, '']);
+            const revRow = ws.addRow([`Total Invoiced for Driver ${breakDownStr}`, '', '', '', '', '', '', '', '', `£${driverRevenue.toFixed(2)}`, '']);
             revRow.font = { bold: true };
             currentRow++;
           }
@@ -257,10 +327,10 @@ export async function POST(req: Request) {
           ws.addRow([]); currentRow++;
         });
 
-        if (rate > 0) {
-          const grandTotalRow = ws.addRow([`GRAND TOTAL REVENUE FOR ${clientName} (${format(parseISO(weekStartDate), "MMM d")}):`, '', '', '', '', '', '', `£${totalRevenueSum.toFixed(2)}`]);
+        if (totalRevenueSum > 0) {
+          const grandTotalRow = ws.addRow([`GRAND TOTAL REVENUE FOR ${clientName} (${format(parseISO(weekStartDate), "MMM d")}):`, '', '', '', '', '', '', '', '', `£${totalRevenueSum.toFixed(2)}`]);
           grandTotalRow.font = { size: 14, bold: true };
-          grandTotalRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } }; // Yellow highlight
+          grandTotalRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } };
         }
       });
     });
@@ -268,7 +338,7 @@ export async function POST(req: Request) {
     // Write Excel to buffer
     const buffer = await workbook.xlsx.writeBuffer();
 
-    // 5. Send Email
+    // 6. Send Email
     const { data: emailData, error: emailError } = await resend.emails.send({
       from: 'Accept Recruitment <timesheets@acceptrec.co.uk>',
       to: [email],
@@ -276,7 +346,8 @@ export async function POST(req: Request) {
       html: `
         <h1>Payroll Report Generated</h1>
         <p>Please find the attached detailed payroll report.</p>
-        <p>Charge Rate Applied: ${rate > 0 ? `£${rate.toFixed(2)}/hr` : 'None'}</p>
+        <p>Fallback Charge Rate: ${fallbackRate > 0 ? `£${fallbackRate.toFixed(2)}/hr` : 'None'}</p>
+        <p>Driver class assignments were ${Object.keys(classAssignments).length > 0 ? 'included' : 'not set'} in this report.</p>
         <p>Generated at: ${new Date().toLocaleString()}</p>
       `,
       attachments: [

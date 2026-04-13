@@ -553,3 +553,50 @@ export const insertRosterEntrySchema = createInsertSchema(rosterEntries).omit({
 
 export type RosterEntry = typeof rosterEntries.$inferSelect;
 export type InsertRosterEntry = z.infer<typeof insertRosterEntrySchema>;
+
+// Driver classes - job role categories with per-client hourly rates
+export const driverClasses = pgTable("driver_classes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  // Soft delete fields
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by"),
+});
+
+export const insertDriverClassSchema = createInsertSchema(driverClasses).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+  deletedBy: true,
+}).extend({
+  name: z.string().min(1, "Class name is required"),
+});
+
+export type DriverClass = typeof driverClasses.$inferSelect;
+export type InsertDriverClass = z.infer<typeof insertDriverClassSchema>;
+
+// Driver class rates - per-client hourly rate for each driver class
+export const driverClassRates = pgTable("driver_class_rates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  driverClassId: varchar("driver_class_id").notNull().references(() => driverClasses.id, { onDelete: 'cascade' }),
+  clientId: varchar("client_id").notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  hourlyRate: real("hourly_rate").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  uniqueClassClient: uniqueIndex("unique_class_client").on(table.driverClassId, table.clientId),
+}));
+
+export const insertDriverClassRateSchema = createInsertSchema(driverClassRates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  hourlyRate: z.number().min(0, "Rate must be at least 0"),
+});
+
+export type DriverClassRate = typeof driverClassRates.$inferSelect;
+export type InsertDriverClassRate = z.infer<typeof insertDriverClassRateSchema>;

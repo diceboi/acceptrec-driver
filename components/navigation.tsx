@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { LayoutDashboard, FileText, LogOut, CheckSquare, DollarSign, Building2, Star, MessageSquare, CalendarDays, MessageCircle, Shield, Trash2, Users, ChevronDown, Eye, EyeOff, Search } from 'lucide-react';
+import { LayoutDashboard, FileText, LogOut, CheckSquare, DollarSign, Building2, Star, MessageSquare, CalendarDays, MessageCircle, Shield, Trash2, Users, Layers, ChevronDown, Eye, EyeOff, Search } from 'lucide-react';
 import Image from 'next/image';
 import type { User } from '@supabase/supabase-js';
 
@@ -223,6 +223,12 @@ export default function Navigation() {
                                                         <DropdownMenuItem className="gap-2 cursor-pointer">
                                                             <Users className="w-4 h-4" />
                                                             Users
+                                                        </DropdownMenuItem>
+                                                    </Link>
+                                                    <Link href="/driver-classes">
+                                                        <DropdownMenuItem className="gap-2 cursor-pointer">
+                                                            <Layers className="w-4 h-4" />
+                                                            Driver Classes
                                                         </DropdownMenuItem>
                                                     </Link>
                                                     <DropdownMenuSeparator />

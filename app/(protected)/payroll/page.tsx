@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
-import { ChevronDown, ChevronRight, FileText, ShieldAlert, Mail } from "lucide-react";
+import { ChevronDown, ChevronRight, FileText, ShieldAlert, Mail, Layers } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -24,6 +24,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -37,12 +44,29 @@ import { BatchConfirmationModal } from "@/components/payroll/BatchConfirmationMo
 import { SendBatchEmail } from "@/components/payroll/SendBatchEmail";
 import { Timesheet, Client } from "@/shared/schema";
 
+const DAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const;
+const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+interface DriverClass {
+  id: string;
+  name: string;
+}
+
+interface ClassRate {
+  id: string;
+  driverClassId: string;
+  clientId: string;
+  hourlyRate: number;
+  clientName: string;
+}
+
 interface ClientWeekGroup {
   client: string;
   batchId?: string | null;
   minimumBillableHours: number;
   drivers: {
     name: string;
+    timesheetId: string;
     actualHours: number;
     billableHours: number;
     daysWorked: number;
@@ -51,6 +75,12 @@ interface ClientWeekGroup {
     approvedBy?: string | null;
     batchId?: string | null;
     hasModifications?: boolean;
+    dayDetails: {
+      day: string;
+      dayLabel: string;
+      client: string;
+      hours: number;
+    }[];
   }[];
   totalActualHours: number;
   totalBillableHours: number;
@@ -64,12 +94,17 @@ interface WeekGroup {
   driverCount: number;
 }
 
+// Class assignments: timesheetId -> day -> classId
+type ClassAssignments = Record<string, Record<string, string>>;
+
 export default function PayrollPage() {
   const { user, isLoading: authLoading } = useAuth();
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [payrollEmail, setPayrollEmail] = useState("");
   const [chargeRate, setChargeRate] = useState("");
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [classAssignments, setClassAssignments] = useState<ClassAssignments>({});
+  const [expandedDrivers, setExpandedDrivers] = useState<Set<string>>(new Set());
 
   const { data: timesheets, isLoading: timesheetsLoading } = useQuery<Timesheet[]>({
     queryKey: ["/api/timesheets"],
@@ -79,7 +114,46 @@ export default function PayrollPage() {
     queryKey: ["/api/clients"],
   });
 
-  // Helper functions - ported from legacy code
+  const { data: driverClasses = [] } = useQuery<DriverClass[]>({
+    queryKey: ["/api/driver-classes"],
+  });
+
+  // Fetch all class rates across all classes
+  const { data: allClassRates = [] } = useQuery<ClassRate[]>({
+    queryKey: ["/api/driver-classes/all-rates"],
+    queryFn: async () => {
+      // Fetch rates for each class
+      const allRates: ClassRate[] = [];
+      for (const dc of driverClasses) {
+        const res = await fetch(`/api/driver-classes/${dc.id}/rates`, { credentials: 'include' });
+        if (res.ok) {
+          const rates = await res.json();
+          allRates.push(...rates);
+        }
+      }
+      return allRates;
+    },
+    enabled: driverClasses.length > 0,
+  });
+
+  // Helper: get rate for a class + client combo
+  const getClassRate = (classId: string, clientName: string): number | null => {
+    if (!clients) return null;
+    // Find the client ID from name
+    const normalizedName = normalizeClientName(clientName);
+    const matchedClient = clients.find(c => normalizeClientName(c.companyName) === normalizedName);
+    if (!matchedClient) return null;
+
+    const rate = allClassRates.find(r => r.driverClassId === classId && r.clientId === matchedClient.id);
+    return rate?.hourlyRate ?? null;
+  };
+
+  // Helper: get class name by ID
+  const getClassName = (classId: string): string => {
+    return driverClasses.find(dc => dc.id === classId)?.name ?? "";
+  };
+
+  // Helper functions
   const normalizeClientName = (name: string): string => {
     return name
       .toLowerCase()
@@ -127,10 +201,10 @@ export default function PayrollPage() {
   };
 
   const sendEmailMutation = useMutation({
-    mutationFn: async ({ email, rate }: { email: string, rate: string }) => {
+    mutationFn: async ({ email, rate, assignments }: { email: string, rate: string, assignments: ClassAssignments }) => {
       const response = await fetch("/api/payroll/send", {
         method: "POST",
-        body: JSON.stringify({ email, chargeRate: rate }),
+        body: JSON.stringify({ email, fallbackChargeRate: rate, classAssignments: assignments }),
         headers: { "Content-Type": "application/json" },
       });
       if (!response.ok) {
@@ -156,10 +230,10 @@ export default function PayrollPage() {
       return;
     }
     if (!chargeRate || isNaN(parseFloat(chargeRate))) {
-      toast.error("Please enter a valid charge rate");
+      toast.error("Please enter a valid fallback charge rate");
       return;
     }
-    sendEmailMutation.mutate({ email: payrollEmail, rate: chargeRate });
+    sendEmailMutation.mutate({ email: payrollEmail, rate: chargeRate, assignments: classAssignments });
   };
 
   const toggleRow = (key: string) => {
@@ -170,6 +244,25 @@ export default function PayrollPage() {
       newExpanded.add(key);
     }
     setExpandedRows(newExpanded);
+  };
+
+  const toggleDriverExpanded = (key: string) => {
+    setExpandedDrivers(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const handleClassAssignment = (timesheetId: string, day: string, classId: string) => {
+    setClassAssignments(prev => ({
+      ...prev,
+      [timesheetId]: {
+        ...(prev[timesheetId] || {}),
+        [day]: classId === "none" ? "" : classId,
+      },
+    }));
   };
 
   const getWeekGroups = (): WeekGroup[] => {
@@ -197,25 +290,26 @@ export default function PayrollPage() {
       const week = weeks.get(weekStart)!;
 
       const days = [
-        { client: timesheet.sundayClient, total: timesheet.sundayTotal },
-        { client: timesheet.mondayClient, total: timesheet.mondayTotal },
-        { client: timesheet.tuesdayClient, total: timesheet.tuesdayTotal },
-        { client: timesheet.wednesdayClient, total: timesheet.wednesdayTotal },
-        { client: timesheet.thursdayClient, total: timesheet.thursdayTotal },
-        { client: timesheet.fridayClient, total: timesheet.fridayTotal },
-        { client: timesheet.saturdayClient, total: timesheet.saturdayTotal },
+        { day: "sunday", dayLabel: "Sun", client: timesheet.sundayClient, total: timesheet.sundayTotal },
+        { day: "monday", dayLabel: "Mon", client: timesheet.mondayClient, total: timesheet.mondayTotal },
+        { day: "tuesday", dayLabel: "Tue", client: timesheet.tuesdayClient, total: timesheet.tuesdayTotal },
+        { day: "wednesday", dayLabel: "Wed", client: timesheet.wednesdayClient, total: timesheet.wednesdayTotal },
+        { day: "thursday", dayLabel: "Thu", client: timesheet.thursdayClient, total: timesheet.thursdayTotal },
+        { day: "friday", dayLabel: "Fri", client: timesheet.fridayClient, total: timesheet.fridayTotal },
+        { day: "saturday", dayLabel: "Sat", client: timesheet.saturdayClient, total: timesheet.saturdayTotal },
       ];
 
-      const clientData = new Map<string, { actualHours: number; daysWorked: number }>();
+      const clientData = new Map<string, { actualHours: number; daysWorked: number; dayDetails: { day: string; dayLabel: string; client: string; hours: number }[] }>();
       
-      days.forEach(day => {
-        if (day.client && day.client.trim()) {
-          const hours = parseFloat(day.total || "0");
+      days.forEach(dayInfo => {
+        if (dayInfo.client && dayInfo.client.trim()) {
+          const hours = parseFloat(dayInfo.total || "0");
           if (hours > 0) {
-            const existing = clientData.get(day.client) || { actualHours: 0, daysWorked: 0 };
+            const existing = clientData.get(dayInfo.client) || { actualHours: 0, daysWorked: 0, dayDetails: [] };
             existing.actualHours += hours;
             existing.daysWorked += 1;
-            clientData.set(day.client, existing);
+            existing.dayDetails.push({ day: dayInfo.day, dayLabel: dayInfo.dayLabel, client: dayInfo.client, hours });
+            clientData.set(dayInfo.client, existing);
           }
         }
       });
@@ -244,6 +338,7 @@ export default function PayrollPage() {
 
         clientGroup.drivers.push({
           name: timesheet.driverName,
+          timesheetId: timesheet.id,
           actualHours: data.actualHours,
           billableHours: billableHours,
           daysWorked: data.daysWorked,
@@ -252,6 +347,7 @@ export default function PayrollPage() {
           approvedBy: timesheet.clientApprovedBy,
           batchId: timesheet.batchId,
           hasModifications: !!(timesheet.clientModifications && Object.keys(timesheet.clientModifications as object).length > 0),
+          dayDetails: data.dayDetails,
         });
         clientGroup.totalActualHours += data.actualHours;
         clientGroup.totalBillableHours += billableHours;
@@ -275,6 +371,17 @@ export default function PayrollPage() {
 
   const weekGroups = getWeekGroups();
 
+  // Count how many day-class assignments have been made
+  const totalAssignments = useMemo(() => {
+    let count = 0;
+    Object.values(classAssignments).forEach(days => {
+      Object.values(days).forEach(classId => {
+        if (classId) count++;
+      });
+    });
+    return count;
+  }, [classAssignments]);
+
   if (authLoading || timesheetsLoading) {
     return (
       <div className="container mx-auto p-6 max-w-6xl space-y-4">
@@ -284,7 +391,6 @@ export default function PayrollPage() {
     );
   }
 
-  // Admin access check (assuming 'admin' or 'super_admin' roles)
   const userRole = user?.user_metadata?.role;
   if (userRole !== "admin" && userRole !== "super_admin") {
     return (
@@ -325,38 +431,150 @@ export default function PayrollPage() {
                 Send to Payroll
               </Button>
             </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
+            <DialogContent className="max-w-5xl max-h-[90vh] grid-rows-none! flex flex-col overflow-hidden">
+              <DialogHeader className="shrink-0">
                 <DialogTitle>Send Payroll Report</DialogTitle>
                 <DialogDescription>
-                  Enter the email address to send the complete payroll report with batch confirmations
+                  Assign driver classes per day to set hourly rates, then send the report.
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="payroll-email">Payroll Email Address</Label>
-                  <Input
-                    id="payroll-email"
-                    type="email"
-                    placeholder="payroll@company.com"
-                    value={payrollEmail}
-                    onChange={(e) => setPayrollEmail(e.target.value)}
-                  />
+              <div className="flex-1 min-h-0 overflow-y-auto -mx-6 px-6">
+                <div className="space-y-6 pb-4">
+                  {/* Email & fallback rate */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="payroll-email">Payroll Email Address</Label>
+                      <Input
+                        id="payroll-email"
+                        type="email"
+                        placeholder="payroll@company.com"
+                        value={payrollEmail}
+                        onChange={(e) => setPayrollEmail(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="charge-rate">Fallback Charge Rate (£/hr)</Label>
+                      <Input
+                        id="charge-rate"
+                        type="number"
+                        step="0.01"
+                        placeholder="e.g. 15.50"
+                        value={chargeRate}
+                        onChange={(e) => setChargeRate(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">Used when no class is assigned to a day</p>
+                    </div>
+                  </div>
+
+                  {totalAssignments > 0 && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Layers className="w-4 h-4" />
+                      <span>{totalAssignments} day-class assignment{totalAssignments !== 1 ? 's' : ''} set</span>
+                    </div>
+                  )}
+
+                  {/* Per-week, per-client, per-driver class assignment */}
+                  {weekGroups.map(week => (
+                    <div key={week.weekStartDate} className="border rounded-lg">
+                      <div className="px-4 py-3 bg-muted/50 rounded-t-lg">
+                        <h3 className="font-semibold">Week of {format(parseISO(week.weekStartDate), "MMM d, yyyy")}</h3>
+                        <p className="text-xs text-muted-foreground">{week.driverCount} drivers · {week.clients.length} clients</p>
+                      </div>
+                      <div className="divide-y">
+                        {week.clients.map(client => (
+                          <div key={`${week.weekStartDate}-${client.client}`} className="px-4 py-3">
+                            <h4 className="font-medium text-sm mb-2">{client.client}</h4>
+                            <div className="space-y-2">
+                              {client.drivers.map((driver) => {
+                                const driverKey = `modal-${driver.timesheetId}-${client.client}`;
+                                const isExpanded = expandedDrivers.has(driverKey);
+                                
+                                return (
+                                  <div key={driverKey} className="border rounded-md bg-background">
+                                    <div
+                                      className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-muted/30"
+                                      onClick={() => toggleDriverExpanded(driverKey)}
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        {isExpanded ? <ChevronDown className="w-3 h-3 text-muted-foreground" /> : <ChevronRight className="w-3 h-3 text-muted-foreground" />}
+                                        <span className="text-sm font-medium">{driver.name}</span>
+                                      </div>
+                                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                        <span>{driver.daysWorked} day{driver.daysWorked !== 1 ? 's' : ''}</span>
+                                        <span>{driver.billableHours.toFixed(1)}h</span>
+                                        {/* Show badge if any classes assigned for this driver */}
+                                        {driver.dayDetails.some(d => classAssignments[driver.timesheetId]?.[d.day]) && (
+                                          <Badge variant="secondary" className="text-xs"><Layers className="w-3 h-3 mr-1" />Class set</Badge>
+                                        )}
+                                      </div>
+                                    </div>
+                                    {isExpanded && (
+                                      <div className="px-3 pb-3 border-t">
+                                        <Table>
+                                          <TableHeader>
+                                            <TableRow>
+                                              <TableHead className="w-16 text-xs">Day</TableHead>
+                                              <TableHead className="text-xs text-right w-20">Hours</TableHead>
+                                              <TableHead className="text-xs w-48">Driver Class</TableHead>
+                                              <TableHead className="text-xs text-right w-24">Rate</TableHead>
+                                            </TableRow>
+                                          </TableHeader>
+                                          <TableBody>
+                                            {driver.dayDetails.map(dayDetail => {
+                                              const assignedClassId = classAssignments[driver.timesheetId]?.[dayDetail.day] || "";
+                                              const resolvedRate = assignedClassId ? getClassRate(assignedClassId, client.client) : null;
+                                              
+                                              return (
+                                                <TableRow key={dayDetail.day} className="border-0">
+                                                  <TableCell className="py-1 text-xs font-medium">{dayDetail.dayLabel}</TableCell>
+                                                  <TableCell className="py-1 text-xs text-right">{dayDetail.hours.toFixed(2)}</TableCell>
+                                                  <TableCell className="py-1">
+                                                    <Select
+                                                      value={assignedClassId || "none"}
+                                                      onValueChange={(val) => handleClassAssignment(driver.timesheetId, dayDetail.day, val)}
+                                                    >
+                                                      <SelectTrigger className="h-7 text-xs w-full">
+                                                        <SelectValue placeholder="Select class..." />
+                                                      </SelectTrigger>
+                                                      <SelectContent>
+                                                        <SelectItem value="none">— No class —</SelectItem>
+                                                        {driverClasses.map(dc => (
+                                                          <SelectItem key={dc.id} value={dc.id}>{dc.name}</SelectItem>
+                                                        ))}
+                                                      </SelectContent>
+                                                    </Select>
+                                                  </TableCell>
+                                                  <TableCell className="py-1 text-xs text-right">
+                                                    {assignedClassId && resolvedRate !== null ? (
+                                                      <span className="text-green-600 font-medium">£{resolvedRate.toFixed(2)}</span>
+                                                    ) : assignedClassId ? (
+                                                      <span className="text-amber-500 text-xs">No rate</span>
+                                                    ) : (
+                                                      <span className="text-muted-foreground">—</span>
+                                                    )}
+                                                  </TableCell>
+                                                </TableRow>
+                                              );
+                                            })}
+                                          </TableBody>
+                                        </Table>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <div>
-                  <Label htmlFor="charge-rate">Charge Rate (£/hr)</Label>
-                  <Input
-                    id="charge-rate"
-                    type="number"
-                    step="0.01"
-                    placeholder="e.g. 15.50"
-                    value={chargeRate}
-                    onChange={(e) => setChargeRate(e.target.value)}
-                  />
-                </div>
+              </div>
+              <div className="shrink-0 pt-4 border-t">
                 <Button 
                   onClick={handleSendEmail} 
-                  disabled={sendEmailMutation.isPending}
+                  disabled={sendEmailMutation.isPending || !payrollEmail || !payrollEmail.includes('@') || !chargeRate || isNaN(parseFloat(chargeRate))}
                   className="w-full"
                 >
                   {sendEmailMutation.isPending ? "Sending..." : "Send Report"}
