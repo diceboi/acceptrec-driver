@@ -4,7 +4,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
-import { Plus, Send, Copy, CheckCircle, Clock, FileText, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Send, Copy, CheckCircle, Clock, FileText, AlertTriangle, ChevronLeft, ChevronRight, ChevronDown, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +28,20 @@ import {
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+
+interface DriverClass {
+  id: string;
+  name: string;
+  description: string;
+}
 
 interface ApprovalBatch {
   id: string;
@@ -59,6 +73,9 @@ interface Client {
   contactName: string;
   email: string;
 }
+
+const DAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const;
+const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export default function ClientApprovalsPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -324,9 +341,15 @@ function CreateBatchForm({ timesheets, onSuccess }: CreateBatchFormProps) {
   const [selectedWeek, setSelectedWeek] = useState<string>("");
   const [selectedTimesheets, setSelectedTimesheets] = useState<Set<string>>(new Set());
   const [sendEmail, setSendEmail] = useState<boolean>(false);
+  const [expandedDrivers, setExpandedDrivers] = useState<Set<string>>(new Set());
+  const [classAssignments, setClassAssignments] = useState<Record<string, Record<string, string>>>({});
 
   const { data: clients } = useQuery<Client[]>({
     queryKey: ["/api/clients"],
+  });
+
+  const { data: driverClasses = [] } = useQuery<DriverClass[]>({
+    queryKey: ["/api/driver-classes"],
   });
 
   const createBatchMutation = useMutation({
@@ -393,10 +416,34 @@ function CreateBatchForm({ timesheets, onSuccess }: CreateBatchFormProps) {
     const newSelected = new Set(selectedTimesheets);
     if (newSelected.has(timesheetId)) {
       newSelected.delete(timesheetId);
+      // Remove class assignments when unselected
+      const newAssignments = { ...classAssignments };
+      delete newAssignments[timesheetId];
+      setClassAssignments(newAssignments);
     } else {
       newSelected.add(timesheetId);
     }
     setSelectedTimesheets(newSelected);
+  };
+
+  const handleClassAssignment = (timesheetId: string, day: string, classId: string) => {
+    setClassAssignments(prev => ({
+      ...prev,
+      [timesheetId]: {
+        ...(prev[timesheetId] || {}),
+        [day]: classId === "none" ? "" : classId
+      }
+    }));
+  };
+
+  const toggleDriverExpanded = (driverKey: string) => {
+    const newExpanded = new Set(expandedDrivers);
+    if (newExpanded.has(driverKey)) {
+      newExpanded.delete(driverKey);
+    } else {
+      newExpanded.add(driverKey);
+    }
+    setExpandedDrivers(newExpanded);
   };
 
   const handleSubmit = () => {
@@ -412,6 +459,7 @@ function CreateBatchForm({ timesheets, onSuccess }: CreateBatchFormProps) {
       clientId: selectedClientId,
       sendEmail,
       recipientEmails: selectedClient.email ? [selectedClient.email] : [],
+      classAssignments, // Pass class assignments to the API
     });
   };
 
@@ -464,27 +512,105 @@ function CreateBatchForm({ timesheets, onSuccess }: CreateBatchFormProps) {
             </p>
           ) : (
             <div className="border rounded-md p-4 space-y-3 max-h-64 overflow-y-auto">
-              {eligibleTimesheets.map((timesheet) => (
-                <div key={timesheet.id} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={timesheet.id}
-                    checked={selectedTimesheets.has(timesheet.id)}
-                    onCheckedChange={() => handleToggleTimesheet(timesheet.id)}
-                  />
-                  <label htmlFor={timesheet.id} className="text-sm cursor-pointer">
-                    {timesheet.driverName}
-                    {timesheet.approvalStatus !== 'draft' && (
-                      <Badge className={`text-xs ml-2 ${
-                        timesheet.approvalStatus === 'approved' ? 'bg-green-500 hover:bg-green-600 text-white' :
-                        timesheet.approvalStatus === 'rejected' ? 'bg-destructive text-destructive-foreground' :
-                        'bg-amber-500 hover:bg-amber-600 text-white'
-                      }`}>
-                        {timesheet.approvalStatus === 'pending_approval' ? 'Pending' : timesheet.approvalStatus}
-                      </Badge>
+              {eligibleTimesheets.map((timesheet) => {
+                const driverKey = `batch-driver-${timesheet.id}`;
+                const isExpanded = expandedDrivers.has(driverKey);
+                const isSelected = selectedTimesheets.has(timesheet.id);
+
+                // Extract working days for this timesheet using type assessment
+                const dayDetails = DAYS.map((day, idx) => {
+                  const ts = timesheet as any;
+                  return {
+                    day,
+                    dayLabel: DAY_LABELS[idx],
+                    hours: parseFloat(ts[`${day}Total`] || "0"),
+                    client: ts[`${day}Client`] as string || "",
+                  };
+                }).filter(d => d.hours > 0);
+
+                return (
+                  <div key={timesheet.id} className={`border rounded-md ${isSelected ? 'border-primary/50 bg-primary/5' : 'bg-background'}`}>
+                    <div className="flex items-center justify-between p-3">
+                      <div className="flex items-center space-x-3">
+                        <Checkbox
+                          id={timesheet.id}
+                          checked={isSelected}
+                          onCheckedChange={() => handleToggleTimesheet(timesheet.id)}
+                        />
+                        <div className="flex items-center gap-2 cursor-pointer" onClick={() => toggleDriverExpanded(driverKey)}>
+                          {isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground cursor-pointer" /> : <ChevronRight className="w-4 h-4 text-muted-foreground cursor-pointer" />}
+                          <label htmlFor={timesheet.id} className="text-sm font-medium cursor-pointer select-none">
+                            {timesheet.driverName}
+                            {timesheet.approvalStatus !== 'draft' && (
+                              <Badge className={`text-xs ml-2 ${
+                                timesheet.approvalStatus === 'approved' ? 'bg-green-500 hover:bg-green-600 text-white' :
+                                timesheet.approvalStatus === 'rejected' ? 'bg-destructive text-destructive-foreground' :
+                                'bg-amber-500 hover:bg-amber-600 text-white'
+                              }`}>
+                                {timesheet.approvalStatus === 'pending_approval' ? 'Pending' : timesheet.approvalStatus}
+                              </Badge>
+                            )}
+                          </label>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                        <span>{dayDetails.length} day{dayDetails.length !== 1 ? 's' : ''}</span>
+                        <span>{dayDetails.reduce((sum, d) => sum + d.hours, 0).toFixed(1)}h</span>
+                        {dayDetails.some(d => classAssignments[timesheet.id]?.[d.day]) && (
+                          <Badge variant="secondary" className="text-xs"><Layers className="w-3 h-3 mr-1" />Class set</Badge>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {isExpanded && (
+                      <div className="px-4 pb-4 pt-1 border-t">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="w-20 text-xs">Day</TableHead>
+                              <TableHead className="text-xs">Client (from timesheet)</TableHead>
+                              <TableHead className="text-xs text-right w-24">Hours</TableHead>
+                              <TableHead className="text-xs w-48">Driver Class</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {dayDetails.map(dayDetail => {
+                              const assignedClassId = classAssignments[timesheet.id]?.[dayDetail.day] || "";
+                              
+                              return (
+                                <TableRow key={dayDetail.day} className="border-0">
+                                  <TableCell className="py-2 text-xs font-medium">{dayDetail.dayLabel}</TableCell>
+                                  <TableCell className="py-2 text-xs text-muted-foreground truncate max-w-[150px]" title={dayDetail.client}>
+                                    {dayDetail.client}
+                                  </TableCell>
+                                  <TableCell className="py-2 text-xs text-right">{dayDetail.hours.toFixed(2)}</TableCell>
+                                  <TableCell className="py-2">
+                                    <Select
+                                      value={assignedClassId || "none"}
+                                      onValueChange={(val) => handleClassAssignment(timesheet.id, dayDetail.day, val)}
+                                    >
+                                      <SelectTrigger className="h-8 text-xs w-full">
+                                        <SelectValue placeholder="Select class..." />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="none">— No class —</SelectItem>
+                                        {driverClasses.map(dc => (
+                                          <SelectItem key={dc.id} value={dc.id}>{dc.name}</SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
                     )}
-                  </label>
-                </div>
-              ))}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

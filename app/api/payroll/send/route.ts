@@ -13,11 +13,11 @@ type ClassAssignments = Record<string, Record<string, string>>;
 
 export async function POST(req: Request) {
   try {
-    const { email, fallbackChargeRate, chargeRate, classAssignments = {} } = await req.json() as {
+    const { email, fallbackChargeRate, chargeRate, weekStartDate } = await req.json() as {
       email: string;
       fallbackChargeRate?: string;
       chargeRate?: string; // backward compat
-      classAssignments?: ClassAssignments;
+      weekStartDate?: string;
     };
 
     if (!email || !email.includes('@')) {
@@ -26,14 +26,19 @@ export async function POST(req: Request) {
 
     const fallbackRate = parseFloat(fallbackChargeRate || chargeRate || "0");
 
-    // 1. Fetch all approved timesheets
+    // 1. Fetch all approved timesheets (filtered by week if provided)
+    const filters = [
+      eq(timesheets.approvalStatus, "approved"),
+      isNull(timesheets.deletedAt)
+    ];
+    if (weekStartDate) {
+      filters.push(eq(timesheets.weekStartDate, weekStartDate));
+    }
+
     const approvedTimesheets = await db
       .select()
       .from(timesheets)
-      .where(and(
-        eq(timesheets.approvalStatus, "approved"),
-        isNull(timesheets.deletedAt)
-      ))
+      .where(and(...filters))
       .orderBy(desc(timesheets.weekStartDate));
 
     if (approvedTimesheets.length === 0) {
@@ -130,8 +135,9 @@ export async function POST(req: Request) {
           const billableHours = Math.max(actualHours, minHours);
           const hasDiscrepancy = actualHours > 0 && actualHours < 8;
           
-          // Look up class assignment for this timesheet + day
-          const assignedClassId = classAssignments[ts.id]?.[day.dayKey] || "";
+          // Look up class assignment for this timesheet + day from the database record
+          const driverClassesByDay = (ts as any).driverClassesByDay as Record<string, string> || {};
+          const assignedClassId = driverClassesByDay[day.dayKey] || "";
           const className = assignedClassId ? (classNameMap.get(assignedClassId) ?? "") : "";
           let dayRate = fallbackRate;
           
@@ -347,7 +353,7 @@ export async function POST(req: Request) {
         <h1>Payroll Report Generated</h1>
         <p>Please find the attached detailed payroll report.</p>
         <p>Fallback Charge Rate: ${fallbackRate > 0 ? `£${fallbackRate.toFixed(2)}/hr` : 'None'}</p>
-        <p>Driver class assignments were ${Object.keys(classAssignments).length > 0 ? 'included' : 'not set'} in this report.</p>
+        <p>Driver class assignments were loaded from the approved timesheets where available.</p>
         <p>Generated at: ${new Date().toLocaleString()}</p>
       `,
       attachments: [

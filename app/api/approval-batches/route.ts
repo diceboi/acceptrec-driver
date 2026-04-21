@@ -13,6 +13,7 @@ const createBatchSchema = z.object({
   clientId: z.string().optional(),
   sendEmail: z.boolean().optional(),
   recipientEmails: z.array(z.string().email()).optional(),
+  classAssignments: z.record(z.string(), z.record(z.string(), z.string())).optional(),
 });
 
 export async function GET() {
@@ -110,7 +111,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     console.log("Create Approval Batch Payload:", JSON.stringify(body, null, 2));
 
-    const { clientName, weekStartDate, timesheetIds, clientId, sendEmail, recipientEmails } = createBatchSchema.parse(body);
+    const { clientName, weekStartDate, timesheetIds, clientId, sendEmail, recipientEmails, classAssignments } = createBatchSchema.parse(body);
 
     const token = crypto.randomBytes(32).toString('hex');
     const expiry = new Date();
@@ -130,7 +131,7 @@ export async function POST(req: Request) {
       })
       .returning();
 
-    // 2. Link Timesheets
+    // 2. Link Timesheets and Save Class Assignments
     if (timesheetIds.length > 0) {
       await db.insert(batchTimesheets).values(
         timesheetIds.map(tid => ({
@@ -139,14 +140,18 @@ export async function POST(req: Request) {
         }))
       );
       
-      // Update timesheets status to 'pending_approval' and link batchId directly (legacy support)
-      await db
-        .update(timesheets)
-        .set({
-            approvalStatus: 'pending_approval',
-            batchId: batch.id
-        })
-        .where(inArray(timesheets.id, timesheetIds));
+      // Update each timesheet sequentially (sqlite/pg-friendly way to handle different json payloads)
+      for (const tid of timesheetIds) {
+        const assignments = classAssignments?.[tid] || null;
+        await db
+          .update(timesheets)
+          .set({
+              approvalStatus: 'pending_approval',
+              batchId: batch.id,
+              ...(assignments ? { driverClassesByDay: assignments } : {})
+          })
+          .where(eq(timesheets.id, tid));
+      }
     }
 
     // 3. Email Sending Logic (DISABLED per user request)

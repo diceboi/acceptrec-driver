@@ -302,6 +302,10 @@ export const timesheets = pgTable("timesheets", {
   // Format: { monday: { actual: 6.5, billable: 8, client: "Client Name", minimumApplied: true }, ... }
   billableHoursByDay: jsonb("billable_hours_by_day"),
   
+  // Driver class assignments per day
+  // Format: { monday: "class-id-1", tuesday: "class-id-2", ... }
+  driverClassesByDay: jsonb("driver_classes_by_day"),
+  
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   // Soft delete fields

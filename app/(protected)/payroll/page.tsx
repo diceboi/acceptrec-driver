@@ -100,10 +100,10 @@ type ClassAssignments = Record<string, Record<string, string>>;
 export default function PayrollPage() {
   const { user, isLoading: authLoading } = useAuth();
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [selectedExportWeek, setSelectedExportWeek] = useState<string>("all");
   const [payrollEmail, setPayrollEmail] = useState("");
   const [chargeRate, setChargeRate] = useState("");
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
-  const [classAssignments, setClassAssignments] = useState<ClassAssignments>({});
   const [expandedDrivers, setExpandedDrivers] = useState<Set<string>>(new Set());
 
   const { data: timesheets, isLoading: timesheetsLoading } = useQuery<Timesheet[]>({
@@ -113,6 +113,19 @@ export default function PayrollPage() {
   const { data: clients } = useQuery<Client[]>({
     queryKey: ["/api/clients"],
   });
+
+  // Extract class assignments from timesheets
+  const classAssignments = useMemo(() => {
+    const assignments: ClassAssignments = {};
+    if (!timesheets) return assignments;
+    
+    for (const ts of timesheets) {
+      if ((ts as any).driverClassesByDay) {
+        assignments[ts.id] = (ts as any).driverClassesByDay;
+      }
+    }
+    return assignments;
+  }, [timesheets]);
 
   const { data: driverClasses = [] } = useQuery<DriverClass[]>({
     queryKey: ["/api/driver-classes"],
@@ -201,10 +214,10 @@ export default function PayrollPage() {
   };
 
   const sendEmailMutation = useMutation({
-    mutationFn: async ({ email, rate, assignments }: { email: string, rate: string, assignments: ClassAssignments }) => {
+    mutationFn: async ({ email, rate, weekStartDate }: { email: string, rate: string, weekStartDate: string }) => {
       const response = await fetch("/api/payroll/send", {
         method: "POST",
-        body: JSON.stringify({ email, fallbackChargeRate: rate, classAssignments: assignments }),
+        body: JSON.stringify({ email, fallbackChargeRate: rate, weekStartDate: weekStartDate !== "all" ? weekStartDate : undefined }),
         headers: { "Content-Type": "application/json" },
       });
       if (!response.ok) {
@@ -233,7 +246,7 @@ export default function PayrollPage() {
       toast.error("Please enter a valid fallback charge rate");
       return;
     }
-    sendEmailMutation.mutate({ email: payrollEmail, rate: chargeRate, assignments: classAssignments });
+    sendEmailMutation.mutate({ email: payrollEmail, rate: chargeRate, weekStartDate: selectedExportWeek });
   };
 
   const toggleRow = (key: string) => {
@@ -253,16 +266,6 @@ export default function PayrollPage() {
       else next.add(key);
       return next;
     });
-  };
-
-  const handleClassAssignment = (timesheetId: string, day: string, classId: string) => {
-    setClassAssignments(prev => ({
-      ...prev,
-      [timesheetId]: {
-        ...(prev[timesheetId] || {}),
-        [day]: classId === "none" ? "" : classId,
-      },
-    }));
   };
 
   const getWeekGroups = (): WeekGroup[] => {
@@ -440,8 +443,25 @@ export default function PayrollPage() {
               </DialogHeader>
               <div className="flex-1 min-h-0 overflow-y-auto -mx-6 px-6">
                 <div className="space-y-6 pb-4">
-                  {/* Email & fallback rate */}
-                  <div className="grid grid-cols-2 gap-4">
+                  {/* Email & fallback rate & week filter */}
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <Label htmlFor="export-week">Export Week</Label>
+                      <Select value={selectedExportWeek} onValueChange={setSelectedExportWeek}>
+                        <SelectTrigger id="export-week">
+                          <SelectValue placeholder="All Weeks" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Weeks</SelectItem>
+                          {weekGroups.map(week => (
+                            <SelectItem key={week.weekStartDate} value={week.weekStartDate}>
+                              Week of {format(parseISO(week.weekStartDate), "MMMM d, yyyy")}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground mt-1">Select the week to export</p>
+                    </div>
                     <div>
                       <Label htmlFor="payroll-email">Payroll Email Address</Label>
                       <Input
@@ -529,20 +549,11 @@ export default function PayrollPage() {
                                                   <TableCell className="py-1 text-xs font-medium">{dayDetail.dayLabel}</TableCell>
                                                   <TableCell className="py-1 text-xs text-right">{dayDetail.hours.toFixed(2)}</TableCell>
                                                   <TableCell className="py-1">
-                                                    <Select
-                                                      value={assignedClassId || "none"}
-                                                      onValueChange={(val) => handleClassAssignment(driver.timesheetId, dayDetail.day, val)}
-                                                    >
-                                                      <SelectTrigger className="h-7 text-xs w-full">
-                                                        <SelectValue placeholder="Select class..." />
-                                                      </SelectTrigger>
-                                                      <SelectContent>
-                                                        <SelectItem value="none">— No class —</SelectItem>
-                                                        {driverClasses.map(dc => (
-                                                          <SelectItem key={dc.id} value={dc.id}>{dc.name}</SelectItem>
-                                                        ))}
-                                                      </SelectContent>
-                                                    </Select>
+                                                    {assignedClassId ? (
+                                                      <span className="text-xs">{getClassName(assignedClassId)}</span>
+                                                    ) : (
+                                                      <span className="text-xs text-muted-foreground">— No class —</span>
+                                                    )}
                                                   </TableCell>
                                                   <TableCell className="py-1 text-xs text-right">
                                                     {assignedClassId && resolvedRate !== null ? (

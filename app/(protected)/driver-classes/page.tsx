@@ -322,7 +322,7 @@ function ClassRow({
   const [localRates, setLocalRates] = useState<Record<string, string>>({});
   const [hasChanges, setHasChanges] = useState(false);
 
-  const { data: rates = [], isLoading } = useQuery<ClassRate[]>({
+  const { data: queryRates, isLoading } = useQuery<ClassRate[]>({
     queryKey: ["/api/driver-classes", driverClass.id, "rates"],
     queryFn: async () => {
       const res = await fetch(`/api/driver-classes/${driverClass.id}/rates`, { credentials: 'include' });
@@ -332,15 +332,18 @@ function ClassRow({
     enabled: isExpanded,
   });
 
+  const rates = queryRates || [];
+
   // Populate local rates when data loads
   useEffect(() => {
+    if (!queryRates) return;
     const rateMap: Record<string, string> = {};
-    rates.forEach(r => {
+    queryRates.forEach(r => {
       rateMap[r.clientId] = String(r.hourlyRate);
     });
     setLocalRates(rateMap);
     setHasChanges(false);
-  }, [rates]);
+  }, [queryRates]);
 
   const saveRatesMutation = useMutation({
     mutationFn: async (ratesPayload: { clientId: string; hourlyRate: number }[]) => {
