@@ -101,6 +101,7 @@ export default function PayrollPage() {
   const { user, isLoading: authLoading } = useAuth();
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [selectedExportWeek, setSelectedExportWeek] = useState<string>("all");
+  const [selectedExportClient, setSelectedExportClient] = useState<string>("all");
   const [payrollEmail, setPayrollEmail] = useState("");
   const [chargeRate, setChargeRate] = useState("");
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
@@ -214,10 +215,15 @@ export default function PayrollPage() {
   };
 
   const sendEmailMutation = useMutation({
-    mutationFn: async ({ email, rate, weekStartDate }: { email: string, rate: string, weekStartDate: string }) => {
+    mutationFn: async ({ email, rate, weekStartDate, clientId }: { email: string, rate: string, weekStartDate: string, clientId: string }) => {
       const response = await fetch("/api/payroll/send", {
         method: "POST",
-        body: JSON.stringify({ email, fallbackChargeRate: rate, weekStartDate: weekStartDate !== "all" ? weekStartDate : undefined }),
+        body: JSON.stringify({ 
+          email, 
+          fallbackChargeRate: rate, 
+          weekStartDate: weekStartDate !== "all" ? weekStartDate : undefined,
+          clientId: clientId !== "all" ? clientId : undefined
+        }),
         headers: { "Content-Type": "application/json" },
       });
       if (!response.ok) {
@@ -246,7 +252,12 @@ export default function PayrollPage() {
       toast.error("Please enter a valid fallback charge rate");
       return;
     }
-    sendEmailMutation.mutate({ email: payrollEmail, rate: chargeRate, weekStartDate: selectedExportWeek });
+    sendEmailMutation.mutate({ 
+      email: payrollEmail, 
+      rate: chargeRate, 
+      weekStartDate: selectedExportWeek,
+      clientId: selectedExportClient 
+    });
   };
 
   const toggleRow = (key: string) => {
@@ -443,8 +454,8 @@ export default function PayrollPage() {
               </DialogHeader>
               <div className="flex-1 min-h-0 overflow-y-auto -mx-6 px-6">
                 <div className="space-y-6 pb-4">
-                  {/* Email & fallback rate & week filter */}
-                  <div className="grid grid-cols-3 gap-4">
+                  {/* Export filters row */}
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="export-week">Export Week</Label>
                       <Select value={selectedExportWeek} onValueChange={setSelectedExportWeek}>
@@ -462,6 +473,27 @@ export default function PayrollPage() {
                       </Select>
                       <p className="text-xs text-muted-foreground mt-1">Select the week to export</p>
                     </div>
+                    <div>
+                      <Label htmlFor="export-client">Export Client</Label>
+                      <Select value={selectedExportClient} onValueChange={setSelectedExportClient}>
+                        <SelectTrigger id="export-client">
+                          <SelectValue placeholder="All Clients" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Clients</SelectItem>
+                          {clients?.map(client => (
+                            <SelectItem key={client.id} value={client.id}>
+                              {client.companyName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground mt-1">Select a specific client to export</p>
+                    </div>
+                  </div>
+
+                  {/* Email & fallback rate row */}
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="payroll-email">Payroll Email Address</Label>
                       <Input

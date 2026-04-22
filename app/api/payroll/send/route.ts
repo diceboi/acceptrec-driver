@@ -13,11 +13,12 @@ type ClassAssignments = Record<string, Record<string, string>>;
 
 export async function POST(req: Request) {
   try {
-    const { email, fallbackChargeRate, chargeRate, weekStartDate } = await req.json() as {
+    const { email, fallbackChargeRate, chargeRate, weekStartDate, clientId: requestedClientId } = await req.json() as {
       email: string;
       fallbackChargeRate?: string;
       chargeRate?: string; // backward compat
       weekStartDate?: string;
+      clientId?: string;
     };
 
     if (!email || !email.includes('@')) {
@@ -112,6 +113,11 @@ export async function POST(req: Request) {
       });
 
       clientNamesForDriver.forEach(clientName => {
+        // If a specific clientId was requested, skip clients that don't match it
+        if (requestedClientId && findClientId(clientName) !== requestedClientId) {
+          return;
+        }
+
         if (!weekClients.has(clientName)) {
           weekClients.set(clientName, []);
         }
