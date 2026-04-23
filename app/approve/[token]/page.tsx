@@ -135,6 +135,10 @@ interface Timesheet {
   saturdayNightOut: string | null;
   saturdayExpenseAmount: string | null;
   saturdayExpenseReceipt: string | null;
+  clientPoNumber?: string | null;
+  dayRates?: Record<string, number | null>;
+  dayRevenues?: Record<string, number>;
+  [key: string]: any;
 }
 
 interface BatchData {
@@ -385,6 +389,17 @@ function DriverTimesheetCard({ timesheet, token, batchClientName, batchData }: D
     return count;
   };
 
+  const calculateTotalPay = () => {
+    let total = 0;
+    if (timesheet.dayRevenues) {
+      workedDays.forEach(day => {
+        const rev = timesheet.dayRevenues?.[day.name.toLowerCase()];
+        if (rev && rev > 0) total += rev;
+      });
+    }
+    return total > 0 ? total.toFixed(2) : "0.00";
+  };
+
   const discrepancyCount = getDiscrepancies();
 
   return (
@@ -405,8 +420,11 @@ function DriverTimesheetCard({ timesheet, token, batchClientName, batchData }: D
                 </Badge>
               )}
             </CardTitle>
-            <CardDescription>
-              Total Hours: <span className="font-semibold text-foreground">{getTotalHours().toFixed(2)}h</span>
+            <CardDescription className="flex items-center gap-4">
+              <span>Total Hours: <span className="font-semibold text-foreground">{getTotalHours().toFixed(2)}h</span></span>
+              {timesheet.dayRevenues && parseFloat(calculateTotalPay()) > 0 && (
+                <span>Total Pay: <span className="font-semibold text-foreground">£{calculateTotalPay()}</span></span>
+              )}
             </CardDescription>
           </div>
           <div>
@@ -445,7 +463,10 @@ function DriverTimesheetCard({ timesheet, token, batchClientName, batchData }: D
                   <TableHead className="whitespace-nowrap">PoA</TableHead>
                   <TableHead className="whitespace-nowrap">Other Work</TableHead>
                   <TableHead className="whitespace-nowrap">Charge Hours</TableHead>
+                  <TableHead className="whitespace-nowrap">Rate (£/hr)</TableHead>
+                  <TableHead className="whitespace-nowrap">Total (£)</TableHead>
                   <TableHead className="whitespace-nowrap">Nights Out?</TableHead>
+                  <TableHead className="whitespace-nowrap">Expenses</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -489,14 +510,31 @@ function DriverTimesheetCard({ timesheet, token, batchClientName, batchData }: D
                         </div>
                       </TableCell>
                       <TableCell>
-                        {(day.nightOut === "true" || (day.expenseAmount && parseFloat(day.expenseAmount) > 0)) ? (
-                          <div className="flex flex-col gap-1 text-xs whitespace-nowrap">
-                            {day.nightOut === "true" && <span className="text-blue-600 font-medium">Yes</span>}
-                            {day.expenseAmount && parseFloat(day.expenseAmount) > 0 && (
-                              <span>£{parseFloat(day.expenseAmount).toFixed(2)} <span className="text-muted-foreground text-[10px]">exp</span></span>
+                        {timesheet.dayRates?.[day.name.toLowerCase()] ? `£${timesheet.dayRates[day.name.toLowerCase()]?.toFixed(2)}` : "—"}
+                      </TableCell>
+                      <TableCell className="font-medium text-green-700 dark:text-green-500">
+                        {timesheet.dayRevenues?.[day.name.toLowerCase()] ? `£${timesheet.dayRevenues[day.name.toLowerCase()]?.toFixed(2)}` : "—"}
+                      </TableCell>
+                      <TableCell>
+                        {day.nightOut === "true" ? <span className="text-blue-600 font-medium whitespace-nowrap">Yes</span> : "No"}
+                      </TableCell>
+                      <TableCell>
+                        {day.expenseAmount && parseFloat(day.expenseAmount) > 0 ? (
+                          <div className="flex flex-col text-xs whitespace-nowrap">
+                            <span>£{parseFloat(day.expenseAmount).toFixed(2)}</span>
+                            {day.expenseReceipt && (
+                              <a 
+                                href={day.expenseReceipt.startsWith('http') || day.expenseReceipt.startsWith('/') ? day.expenseReceipt : `/${day.expenseReceipt}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[9px] text-blue-600 hover:underline flex items-center"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                Receipt
+                              </a>
                             )}
                           </div>
-                        ) : "No"}
+                        ) : "—"}
                       </TableCell>
                     </TableRow>
                   );
@@ -628,6 +666,7 @@ function ApproveForm({ timesheetId, token, driverName, timesheet, dayData, onSuc
   const [approverName, setApproverName] = useState("");
   const [rating, setRating] = useState("");
   const [comments, setComments] = useState("");
+  const [poNumber, setPoNumber] = useState(timesheet.clientPoNumber || "");
   const [showEditMode, setShowEditMode] = useState(false);
 
   const [editedTimes, setEditedTimes] = useState<Record<string, any>>({});
@@ -653,6 +692,7 @@ function ApproveForm({ timesheetId, token, driverName, timesheet, dayData, onSuc
         approvedBy: approverName,
         rating: rating ? parseInt(rating) : undefined,
         comments,
+        poNumber,
         modifications: Object.keys(modifications).length > 0 ? modifications : undefined,
       });
     },
@@ -791,6 +831,17 @@ function ApproveForm({ timesheetId, token, driverName, timesheet, dayData, onSuc
           onChange={(e) => setComments(e.target.value)}
           rows={3}
           data-testid="input-comments"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="approve-po-number">PO Number (Optional)</Label>
+        <Input
+          id="approve-po-number"
+          placeholder="Enter PO Number (optional)"
+          value={poNumber}
+          onChange={(e) => setPoNumber(e.target.value)}
+          data-testid="input-po-number"
         />
       </div>
 

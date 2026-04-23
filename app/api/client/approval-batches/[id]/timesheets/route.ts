@@ -82,10 +82,53 @@ export async function GET(
       if (fullName) userNameMap.set(u.id, fullName);
     }
 
-    const result = timesheetData.map(ts => ({
-      ...ts,
-      driverName: userNameMap.get(ts.userId) ?? ts.driverName,
-    }));
+    // Fetch driver class rates for this client
+    const { driverClasses, driverClassRates } = await import('@/shared/schema');
+    const classRates = await db
+      .select({
+        classId: driverClassRates.driverClassId,
+        hourlyRate: driverClassRates.hourlyRate,
+      })
+      .from(driverClassRates)
+      .where(eq(driverClassRates.clientId, effectiveClientId));
+
+    const rateMap = new Map<string, number>();
+    for (const cr of classRates) {
+      rateMap.set(cr.classId, cr.hourlyRate);
+    }
+
+    const result = timesheetData.map(ts => {
+      // Calculate rates and revenue per day
+      const driverClassesByDay = (ts.driverClassesByDay as Record<string, string>) || {};
+      const dayRates: Record<string, number | null> = {};
+      const dayRevenues: Record<string, number> = {};
+      
+      const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+      days.forEach(day => {
+        const classId = driverClassesByDay[day];
+        const rate = classId ? (rateMap.get(classId) ?? null) : null;
+        dayRates[day] = rate;
+        
+        // Calculate revenue
+        const dayTotal = parseFloat((ts as any)[`${day}Total`] || "0");
+        const actHours = dayTotal;
+        const disableMinHours = (ts as any)[`${day}DisableMinHours`] || false;
+        
+        // Simplified fallback for minimum hours (could be enhanced if needed)
+        // Usually min hours is 8 unless disabled or actual is 0
+        const minHours = disableMinHours ? 0 : 8;
+        const billableHours = actHours > 0 ? Math.max(actHours, minHours) : 0;
+        
+        dayRevenues[day] = rate && billableHours > 0 ? rate * billableHours : 0;
+      });
+
+      return {
+        ...ts,
+        driverName: userNameMap.get(ts.userId) ?? ts.driverName,
+        dayRates,
+        dayRevenues,
+      };
+    });
 
     return NextResponse.json(result);
   } catch (error) {

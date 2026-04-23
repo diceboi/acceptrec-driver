@@ -95,13 +95,13 @@ export async function POST(req: Request) {
       const weekClients = weeks.get(weekStart)!;
 
       const days = [
-        { name: "Sunday", dayKey: "sunday", dayIndex: 0, client: ts.sundayClient, total: ts.sundayTotal, start: ts.sundayStart, end: ts.sundayEnd, break: ts.sundayBreak, poa: ts.sundayPoa, otherWork: ts.sundayOtherWork, nightOut: ts.sundayNightOut },
-        { name: "Monday", dayKey: "monday", dayIndex: 1, client: ts.mondayClient, total: ts.mondayTotal, start: ts.mondayStart, end: ts.mondayEnd, break: ts.mondayBreak, poa: ts.mondayPoa, otherWork: ts.mondayOtherWork, nightOut: ts.mondayNightOut },
-        { name: "Tuesday", dayKey: "tuesday", dayIndex: 2, client: ts.tuesdayClient, total: ts.tuesdayTotal, start: ts.tuesdayStart, end: ts.tuesdayEnd, break: ts.tuesdayBreak, poa: ts.tuesdayPoa, otherWork: ts.tuesdayOtherWork, nightOut: ts.tuesdayNightOut },
-        { name: "Wednesday", dayKey: "wednesday", dayIndex: 3, client: ts.wednesdayClient, total: ts.wednesdayTotal, start: ts.wednesdayStart, end: ts.wednesdayEnd, break: ts.wednesdayBreak, poa: ts.wednesdayPoa, otherWork: ts.wednesdayOtherWork, nightOut: ts.wednesdayNightOut },
-        { name: "Thursday", dayKey: "thursday", dayIndex: 4, client: ts.thursdayClient, total: ts.thursdayTotal, start: ts.thursdayStart, end: ts.thursdayEnd, break: ts.thursdayBreak, poa: ts.thursdayPoa, otherWork: ts.thursdayOtherWork, nightOut: ts.thursdayNightOut },
-        { name: "Friday", dayKey: "friday", dayIndex: 5, client: ts.fridayClient, total: ts.fridayTotal, start: ts.fridayStart, end: ts.fridayEnd, break: ts.fridayBreak, poa: ts.fridayPoa, otherWork: ts.fridayOtherWork, nightOut: ts.fridayNightOut },
-        { name: "Saturday", dayKey: "saturday", dayIndex: 6, client: ts.saturdayClient, total: ts.saturdayTotal, start: ts.saturdayStart, end: ts.saturdayEnd, break: ts.saturdayBreak, poa: ts.saturdayPoa, otherWork: ts.saturdayOtherWork, nightOut: ts.saturdayNightOut },
+        { name: "Sunday", dayKey: "sunday", dayIndex: 0, client: ts.sundayClient, total: ts.sundayTotal, start: ts.sundayStart, end: ts.sundayEnd, break: ts.sundayBreak, poa: ts.sundayPoa, otherWork: ts.sundayOtherWork, nightOut: ts.sundayNightOut, expense: (ts as any).sundayExpenseAmount },
+        { name: "Monday", dayKey: "monday", dayIndex: 1, client: ts.mondayClient, total: ts.mondayTotal, start: ts.mondayStart, end: ts.mondayEnd, break: ts.mondayBreak, poa: ts.mondayPoa, otherWork: ts.mondayOtherWork, nightOut: ts.mondayNightOut, expense: (ts as any).mondayExpenseAmount },
+        { name: "Tuesday", dayKey: "tuesday", dayIndex: 2, client: ts.tuesdayClient, total: ts.tuesdayTotal, start: ts.tuesdayStart, end: ts.tuesdayEnd, break: ts.tuesdayBreak, poa: ts.tuesdayPoa, otherWork: ts.tuesdayOtherWork, nightOut: ts.tuesdayNightOut, expense: (ts as any).tuesdayExpenseAmount },
+        { name: "Wednesday", dayKey: "wednesday", dayIndex: 3, client: ts.wednesdayClient, total: ts.wednesdayTotal, start: ts.wednesdayStart, end: ts.wednesdayEnd, break: ts.wednesdayBreak, poa: ts.wednesdayPoa, otherWork: ts.wednesdayOtherWork, nightOut: ts.wednesdayNightOut, expense: (ts as any).wednesdayExpenseAmount },
+        { name: "Thursday", dayKey: "thursday", dayIndex: 4, client: ts.thursdayClient, total: ts.thursdayTotal, start: ts.thursdayStart, end: ts.thursdayEnd, break: ts.thursdayBreak, poa: ts.thursdayPoa, otherWork: ts.thursdayOtherWork, nightOut: ts.thursdayNightOut, expense: (ts as any).thursdayExpenseAmount },
+        { name: "Friday", dayKey: "friday", dayIndex: 5, client: ts.fridayClient, total: ts.fridayTotal, start: ts.fridayStart, end: ts.fridayEnd, break: ts.fridayBreak, poa: ts.fridayPoa, otherWork: ts.fridayOtherWork, nightOut: ts.fridayNightOut, expense: (ts as any).fridayExpenseAmount },
+        { name: "Saturday", dayKey: "saturday", dayIndex: 6, client: ts.saturdayClient, total: ts.saturdayTotal, start: ts.saturdayStart, end: ts.saturdayEnd, break: ts.saturdayBreak, poa: ts.saturdayPoa, otherWork: ts.saturdayOtherWork, nightOut: ts.saturdayNightOut, expense: (ts as any).saturdayExpenseAmount },
       ];
 
       // Figure out which clients this driver worked for
@@ -134,6 +134,7 @@ export async function POST(req: Request) {
         let totalPoa = 0;
         let totalOther = 0;
         let totalNightsOut = 0;
+        let totalExpenses = 0;
         let totalClassRevenue = 0;
         
         const dayRows = workedDays.map(day => {
@@ -163,6 +164,7 @@ export async function POST(req: Request) {
           totalPoa += parseFloat(day.poa || "0");
           totalOther += parseFloat(day.otherWork || "0");
           if (day.nightOut === "true") totalNightsOut++;
+          totalExpenses += parseFloat(day.expense || "0");
           if (hasDiscrepancy) discrepancies++;
 
           return {
@@ -194,8 +196,10 @@ export async function POST(req: Request) {
             totalPoa,
             totalOther,
             totalNightsOut,
+            totalExpenses,
             totalClassRevenue,
-            discrepancies
+            discrepancies,
+            clientPoNumber: (ts as any).clientPoNumber,
           });
         }
       });
@@ -222,15 +226,14 @@ export async function POST(req: Request) {
           { width: 15 }, // Charge Hours
           { width: 18 }, // Class
           { width: 12 }, // Rate
+          { width: 15 }, // Total
           { width: 12 }, // Nights Out
+          { width: 12 }, // Expenses
         ];
 
         // Overall Client Header
         ws.addRow(["Driver Timesheet Approval"]);
         ws.getCell('A1').font = { size: 20, bold: true, color: { argb: 'FF00008B' } };
-        ws.getCell('K1').value = `PO Number: _________________`;
-        ws.getCell('K1').font = { size: 12, bold: true };
-        ws.getCell('K1').alignment = { horizontal: 'right' };
         ws.addRow([`Client: ${clientName} | Week of ${format(parseISO(weekStartDate), "MMMM d, yyyy")}`]);
         ws.getCell('A2').font = { size: 14 };
         
@@ -251,6 +254,12 @@ export async function POST(req: Request) {
           ws.mergeCells(`A${currentRow}:D${currentRow}`);
           ws.getCell(`A${currentRow}`).font = { size: 16, bold: true };
           
+          if (driver.clientPoNumber) {
+            ws.getCell(`L${currentRow}`).value = `PO Number: ${driver.clientPoNumber}`;
+            ws.getCell(`L${currentRow}`).font = { size: 12, bold: true };
+            ws.getCell(`L${currentRow}`).alignment = { horizontal: 'right' };
+          }
+          
           if (driver.discrepancies > 0) {
             ws.getCell(`E${currentRow}`).value = `${driver.discrepancies} Discrepancy`;
             ws.getCell(`E${currentRow}`).font = { color: { argb: 'FFFF0000' }, bold: true };
@@ -262,12 +271,12 @@ export async function POST(req: Request) {
           }
           currentRow++;
 
-          ws.addRow([`Total Hours: ${driver.totalBillable.toFixed(2)}h`]);
+          ws.addRow([`Total Hours: ${driver.totalBillable.toFixed(2)}h | Total Pay: £${driver.totalClassRevenue.toFixed(2)}`]);
           ws.getCell(`A${currentRow}`).font = { bold: true };
           currentRow++;
 
-          // Table Header — now with Class and Rate columns
-          const headerRow = ws.addRow(['Date', 'Start Time', 'End Time', 'Breaks', 'Hours', 'PoA', 'Other Work', 'Charge Hours', 'Class', 'Rate (£/hr)', 'Nights Out?']);
+          // Table Header
+          const headerRow = ws.addRow(['Date', 'Start Time', 'End Time', 'Breaks', 'Hours', 'PoA', 'Other Work', 'Charge Hours', 'Class', 'Rate (£/hr)', 'Total (£)', 'Nights Out?', 'Expenses (£)']);
           headerRow.font = { bold: true };
           headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F4F6' } };
           currentRow++;
@@ -285,7 +294,9 @@ export async function POST(req: Request) {
               day.billableHours.toFixed(2),
               day.className || "—",
               day.dayRate > 0 ? `£${day.dayRate.toFixed(2)}` : "—",
-              day.nightOut === "true" ? "Yes" : "No"
+              day.dayRevenue > 0 ? `£${day.dayRevenue.toFixed(2)}` : "—",
+              day.nightOut === "Yes" || day.nightOut === "true" ? "Yes" : "No",
+              parseFloat(day.expense || "0") > 0 ? parseFloat(day.expense || "0").toFixed(2) : "—"
             ]);
             
             if (day.hasDiscrepancy) {

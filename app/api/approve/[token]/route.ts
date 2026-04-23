@@ -53,7 +53,49 @@ export async function GET(
       .innerJoin(timesheets, eq(batchTimesheets.timesheetId, timesheets.id))
       .where(eq(batchTimesheets.batchId, batch.id));
 
-    const timesheetList = batchData.map(d => d.timesheet);
+    const rawTimesheetList = batchData.map(d => d.timesheet);
+
+    let rateMap = new Map<string, number>();
+    if (batch.clientId) {
+      const { driverClassRates } = await import('@/shared/schema');
+      const classRates = await db
+        .select({
+          classId: driverClassRates.driverClassId,
+          hourlyRate: driverClassRates.hourlyRate,
+        })
+        .from(driverClassRates)
+        .where(eq(driverClassRates.clientId, batch.clientId));
+      
+      for (const cr of classRates) {
+        rateMap.set(cr.classId, cr.hourlyRate);
+      }
+    }
+
+    const timesheetList = rawTimesheetList.map(ts => {
+      const driverClassesByDay = (ts.driverClassesByDay as Record<string, string>) || {};
+      const dayRates: Record<string, number | null> = {};
+      const dayRevenues: Record<string, number> = {};
+      
+      const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+      days.forEach(day => {
+        const classId = driverClassesByDay[day];
+        const rate = classId ? (rateMap.get(classId) ?? null) : null;
+        dayRates[day] = rate;
+        
+        const dayTotal = parseFloat((ts as any)[`${day}Total`] || "0");
+        const disableMinHours = (ts as any)[`${day}DisableMinHours`] || false;
+        const minHours = disableMinHours ? 0 : 8;
+        const billableHours = dayTotal > 0 ? Math.max(dayTotal, minHours) : 0;
+        
+        dayRevenues[day] = rate && billableHours > 0 ? rate * billableHours : 0;
+      });
+
+      return {
+        ...ts,
+        dayRates,
+        dayRevenues,
+      };
+    });
 
     return NextResponse.json({
       batch: {

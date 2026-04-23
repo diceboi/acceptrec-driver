@@ -178,6 +178,7 @@ export const timesheets = pgTable("timesheets", {
   clientRating: integer("client_rating"), // Client rating 1-10 (client rates driver)
   clientComments: text("client_comments"), // Client's comments about driver
   clientModifications: jsonb("client_modifications"), // Tracks what client changed during approval
+  clientPoNumber: text("client_po_number"), // Purchase order number provided by client
   
   // Driver feedback about clients (admin-only, clients never see this)
   driverRating: integer("driver_rating"), // Driver rating 1-10 (driver rates client experience)
@@ -350,6 +351,7 @@ export const insertTimesheetSchema = createInsertSchema(timesheets).omit({
   clientApprovedBy: true,
   clientComments: true,
   clientModifications: true,
+  clientPoNumber: true,
   clientRating: true,
   driverComments: true,
   driverRating: true,

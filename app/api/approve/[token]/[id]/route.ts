@@ -11,6 +11,7 @@ const approveSchema = z.object({
   approvedBy: z.string().min(1, "Approver name is required"),
   rating: z.number().optional(),
   comments: z.string().optional(),
+  poNumber: z.string().optional(),
   modifications: z.record(z.string(), z.any()).optional(), // For edited times
 });
 
@@ -22,7 +23,7 @@ export async function POST(
 
   try {
     const body = await req.json();
-    const { approvedBy, rating, comments, modifications } = approveSchema.parse(body);
+    const { approvedBy, rating, comments, poNumber, modifications } = approveSchema.parse(body);
 
     // 1. Validate Token and Batch
     const [batch] = await db
@@ -63,6 +64,7 @@ export async function POST(
         clientApprovedBy: approvedBy,
         clientRating: rating,
         clientComments: comments,
+        clientPoNumber: poNumber,
         clientModifications: modifications || null,
       })
       .where(eq(timesheets.id, timesheetId))

@@ -54,6 +54,7 @@ interface Timesheet {
   clientApprovedBy: string | null;
   clientRating: number;
   clientComments: string | null;
+  clientPoNumber: string | null;
   mondayClient: string | null;
   mondayStart: string | null;
   mondayEnd: string | null;
@@ -96,6 +97,9 @@ interface Timesheet {
   thursdayDisableMinHours: boolean;
   fridayDisableMinHours: boolean;
   saturdayDisableMinHours: boolean;
+  dayRates?: Record<string, number | null>;
+  dayRevenues?: Record<string, number>;
+  [key: string]: any;
 }
 
 interface ClientInfo {
@@ -158,6 +162,7 @@ export default function ClientPortal() {
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [rating, setRating] = useState(0);
   const [comments, setComments] = useState("");
+  const [poNumber, setPoNumber] = useState("");
 
   // Edit dialog state
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -211,10 +216,11 @@ export default function ClientPortal() {
   });
 
   const approveMutation = useMutation({
-    mutationFn: async ({ timesheetId, rating, comments }: { timesheetId: string; rating: number; comments: string }) => {
+    mutationFn: async ({ timesheetId, rating, comments, poNumber }: { timesheetId: string; rating: number; comments: string; poNumber: string }) => {
       const response = await apiRequest("POST", `/api/client/timesheets/${timesheetId}/approve`, {
         rating,
         comments,
+        poNumber,
         ...(viewAsClientId && { impersonateClientId: viewAsClientId }),
       });
       return response.json();
@@ -227,6 +233,7 @@ export default function ClientPortal() {
       setSelectedTimesheet(null);
       setRating(0);
       setComments("");
+      setPoNumber("");
     },
     onError: () => {
       toast.error("Failed to approve timesheet");
@@ -297,10 +304,22 @@ export default function ClientPortal() {
     return total.toFixed(2);
   };
 
+  const calculateTotalPay = (timesheet: Timesheet) => {
+    let total = 0;
+    if (timesheet.dayRevenues) {
+      days.forEach(day => {
+        const rev = timesheet.dayRevenues?.[day];
+        if (rev && rev > 0) total += rev;
+      });
+    }
+    return total.toFixed(2);
+  };
+
   const openApproveDialog = (timesheet: Timesheet) => {
     setSelectedTimesheet(timesheet);
     setRating(0);
     setComments("");
+    setPoNumber(timesheet.clientPoNumber || "");
     setApproveDialogOpen(true);
   };
 
@@ -317,6 +336,7 @@ export default function ClientPortal() {
         timesheetId: selectedTimesheet.id,
         rating,
         comments,
+        poNumber,
       });
     }
   };
@@ -489,9 +509,17 @@ export default function ClientPortal() {
                               {getStatusBadge(timesheet.approvalStatus)}
                             </CardTitle>
                           </div>
-                          <div className="text-right">
-                             <div className="font-semibold text-lg">{calculateTotalHours(timesheet, minimumBillableHours)}h</div>
-                             <div className="text-xs text-muted-foreground">Total Charge Hours</div>
+                          <div className="text-right flex items-center justify-end gap-6 text-right">
+                             <div>
+                               <div className="font-semibold text-lg">{calculateTotalHours(timesheet, minimumBillableHours)}h</div>
+                               <div className="text-xs text-muted-foreground">Total Charge Hours</div>
+                             </div>
+                             {timesheet.dayRevenues && parseFloat(calculateTotalPay(timesheet)) > 0 && (
+                               <div>
+                                 <div className="font-semibold text-lg">£{calculateTotalPay(timesheet)}</div>
+                                 <div className="text-xs text-muted-foreground">Total Pay</div>
+                               </div>
+                             )}
                           </div>
                         </div>
                       </CardHeader>
@@ -508,7 +536,10 @@ export default function ClientPortal() {
                                 <TableHead className="whitespace-nowrap">PoA</TableHead>
                                 <TableHead className="whitespace-nowrap">Other Work</TableHead>
                                 <TableHead className="whitespace-nowrap">Charge Hours</TableHead>
+                                <TableHead className="whitespace-nowrap">Rate (£/hr)</TableHead>
+                                <TableHead className="whitespace-nowrap">Total (£)</TableHead>
                                 <TableHead className="whitespace-nowrap">Nights Out?</TableHead>
+                                <TableHead className="whitespace-nowrap">Expenses</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -572,27 +603,31 @@ export default function ClientPortal() {
                                       </div>
                                     </TableCell>
                                     <TableCell>
-                                      {(nightOut === "true" || (expenseAmount && parseFloat(expenseAmount) > 0)) ? (
-                                        <div className="flex flex-col gap-1 text-xs whitespace-nowrap">
-                                          {nightOut === "true" && <span className="text-blue-600 font-medium">Yes</span>}
-                                          {expenseAmount && parseFloat(expenseAmount) > 0 && (
-                                            <div className="flex flex-col">
-                                              <span>£{parseFloat(expenseAmount).toFixed(2)} <span className="text-muted-foreground text-[10px]">exp</span></span>
-                                              {expenseReceipt && (
-                                                <a 
-                                                  href={expenseReceipt.startsWith('http') || expenseReceipt.startsWith('/') ? expenseReceipt : `/${expenseReceipt}`}
-                                                  target="_blank"
-                                                  rel="noopener noreferrer"
-                                                  className="text-[9px] text-blue-600 hover:underline"
-                                                  onClick={(e) => e.stopPropagation()}
-                                                >
-                                                  Receipt
-                                                </a>
-                                              )}
-                                            </div>
+                                      {timesheet.dayRates?.[day] ? `£${timesheet.dayRates[day]?.toFixed(2)}` : "—"}
+                                    </TableCell>
+                                    <TableCell className="font-medium text-green-700 dark:text-green-500">
+                                      {timesheet.dayRevenues?.[day] ? `£${timesheet.dayRevenues[day]?.toFixed(2)}` : "—"}
+                                    </TableCell>
+                                    <TableCell>
+                                      {nightOut === "true" ? <span className="text-blue-600 font-medium whitespace-nowrap">Yes</span> : "No"}
+                                    </TableCell>
+                                    <TableCell>
+                                      {expenseAmount && parseFloat(expenseAmount) > 0 ? (
+                                        <div className="flex flex-col text-xs whitespace-nowrap">
+                                          <span>£{parseFloat(expenseAmount).toFixed(2)}</span>
+                                          {expenseReceipt && (
+                                            <a 
+                                              href={expenseReceipt.startsWith('http') || expenseReceipt.startsWith('/') ? expenseReceipt : `/${expenseReceipt}`}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="text-[9px] text-blue-600 hover:underline flex items-center"
+                                              onClick={(e) => e.stopPropagation()}
+                                            >
+                                              Receipt
+                                            </a>
                                           )}
                                         </div>
-                                      ) : "No"}
+                                      ) : "—"}
                                     </TableCell>
                                   </TableRow>
                                 );
@@ -735,6 +770,16 @@ export default function ClientPortal() {
                   </button>
                 ))}
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="poNumber">PO Number (Optional)</Label>
+              <Input
+                id="poNumber"
+                value={poNumber}
+                onChange={(e) => setPoNumber(e.target.value)}
+                placeholder="Enter Purchase Order number..."
+                data-testid="input-approve-po-number"
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="comments">Comments (Optional)</Label>

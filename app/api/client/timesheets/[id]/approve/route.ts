@@ -10,6 +10,7 @@ import { syncBatchStatus } from '@/lib/sync-batch-status';
 const approveSchema = z.object({
   rating: z.number().min(1).max(10).optional(),
   comments: z.string().optional(),
+  poNumber: z.string().optional(),
 });
 
 export async function POST(
@@ -50,7 +51,7 @@ export async function POST(
   const { id: timesheetId } = await params;
 
   try {
-    const { rating, comments } = approveSchema.parse(body);
+    const { rating, comments, poNumber } = approveSchema.parse(body);
 
     // Verify timesheet is linked to a batch belonging to this client
     // 1. Get timesheet's batch linkage
@@ -105,6 +106,7 @@ export async function POST(
         clientApprovedBy: approverName,
         clientRating: rating,
         clientComments: comments,
+        clientPoNumber: poNumber,
       })
       .where(eq(timesheets.id, timesheetId))
       .returning();
