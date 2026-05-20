@@ -111,24 +111,29 @@ export async function GET() {
       const week = weeks.get(weekStart)!;
 
       const days = [
-        { client: timesheet.sundayClient, total: timesheet.sundayTotal },
-        { client: timesheet.mondayClient, total: timesheet.mondayTotal },
-        { client: timesheet.tuesdayClient, total: timesheet.tuesdayTotal },
-        { client: timesheet.wednesdayClient, total: timesheet.wednesdayTotal },
-        { client: timesheet.thursdayClient, total: timesheet.thursdayTotal },
-        { client: timesheet.fridayClient, total: timesheet.fridayTotal },
-        { client: timesheet.saturdayClient, total: timesheet.saturdayTotal },
+        { client: timesheet.sundayClient, total: timesheet.sundayTotal, disableMinHours: (timesheet as any).sundayDisableMinHours },
+        { client: timesheet.mondayClient, total: timesheet.mondayTotal, disableMinHours: (timesheet as any).mondayDisableMinHours },
+        { client: timesheet.tuesdayClient, total: timesheet.tuesdayTotal, disableMinHours: (timesheet as any).tuesdayDisableMinHours },
+        { client: timesheet.wednesdayClient, total: timesheet.wednesdayTotal, disableMinHours: (timesheet as any).wednesdayDisableMinHours },
+        { client: timesheet.thursdayClient, total: timesheet.thursdayTotal, disableMinHours: (timesheet as any).thursdayDisableMinHours },
+        { client: timesheet.fridayClient, total: timesheet.fridayTotal, disableMinHours: (timesheet as any).fridayDisableMinHours },
+        { client: timesheet.saturdayClient, total: timesheet.saturdayTotal, disableMinHours: (timesheet as any).saturdayDisableMinHours },
       ];
 
-      // Track per-client: actual hours, days worked
-      const clientData = new Map<string, { actualHours: number; daysWorked: number }>();
+      // Track per-client: actual hours, billable hours, days worked
+      const clientData = new Map<string, { actualHours: number; billableHours: number; daysWorked: number }>();
       
       days.forEach(day => {
         if (day.client && day.client.trim()) {
           const hours = parseFloat(day.total || "0");
           if (hours > 0) {
-            const existing = clientData.get(day.client) || { actualHours: 0, daysWorked: 0 };
+            const minHours = getClientMinimumHours(day.client);
+            const applicableMinHours = day.disableMinHours ? 0 : minHours;
+            const billable = Math.max(hours, applicableMinHours);
+
+            const existing = clientData.get(day.client) || { actualHours: 0, billableHours: 0, daysWorked: 0 };
             existing.actualHours += hours;
+            existing.billableHours += billable;
             existing.daysWorked += 1;
             clientData.set(day.client, existing);
           }
@@ -155,8 +160,8 @@ export async function GET() {
           clientGroup.batchId = timesheet.batchId;
         }
 
-        // Calculate billable hours: max(actualHours, daysWorked * minimumHours)
-        const billableHours = Math.max(data.actualHours, data.daysWorked * minimumHours);
+        // Billable hours are now pre-calculated per day
+        const billableHours = data.billableHours;
 
         clientGroup.drivers.push({
           name: timesheet.driverName,
@@ -167,6 +172,7 @@ export async function GET() {
           approvedAt: timesheet.clientApprovedAt,
           approvedBy: timesheet.clientApprovedBy,
           batchId: timesheet.batchId,
+          poNumber: (timesheet as any).clientPoNumber,
           hasModifications: !!(timesheet.clientModifications && Object.keys(timesheet.clientModifications).length > 0),
         });
 

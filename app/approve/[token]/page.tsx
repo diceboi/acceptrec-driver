@@ -10,9 +10,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { TimeSelect } from "@/components/ui/time-select";
 import { toast } from "sonner";
-import { CheckCircle, XCircle, Clock, AlertCircle, Plus, Building2 } from "lucide-react";
+import { CheckCircle, XCircle, Clock, AlertCircle, Plus, Building2, Printer } from "lucide-react";
 import { format, parseISO, addDays } from "date-fns";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { apiRequest } from "@/lib/queryClient";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -69,6 +69,7 @@ interface Timesheet {
   sundayNightOut: string | null;
   sundayExpenseAmount: string | null;
   sundayExpenseReceipt: string | null;
+  sundayDisableMinHours?: boolean;
 
   mondayClient: string | null;
   mondayStart: string | null;
@@ -80,6 +81,7 @@ interface Timesheet {
   mondayNightOut: string | null;
   mondayExpenseAmount: string | null;
   mondayExpenseReceipt: string | null;
+  mondayDisableMinHours?: boolean;
 
   tuesdayClient: string | null;
   tuesdayStart: string | null;
@@ -91,6 +93,7 @@ interface Timesheet {
   tuesdayNightOut: string | null;
   tuesdayExpenseAmount: string | null;
   tuesdayExpenseReceipt: string | null;
+  tuesdayDisableMinHours?: boolean;
 
   wednesdayClient: string | null;
   wednesdayStart: string | null;
@@ -102,6 +105,7 @@ interface Timesheet {
   wednesdayNightOut: string | null;
   wednesdayExpenseAmount: string | null;
   wednesdayExpenseReceipt: string | null;
+  wednesdayDisableMinHours?: boolean;
 
   thursdayClient: string | null;
   thursdayStart: string | null;
@@ -113,6 +117,7 @@ interface Timesheet {
   thursdayNightOut: string | null;
   thursdayExpenseAmount: string | null;
   thursdayExpenseReceipt: string | null;
+  thursdayDisableMinHours?: boolean;
 
   fridayClient: string | null;
   fridayStart: string | null;
@@ -124,6 +129,7 @@ interface Timesheet {
   fridayNightOut: string | null;
   fridayExpenseAmount: string | null;
   fridayExpenseReceipt: string | null;
+  fridayDisableMinHours?: boolean;
 
   saturdayClient: string | null;
   saturdayStart: string | null;
@@ -135,6 +141,7 @@ interface Timesheet {
   saturdayNightOut: string | null;
   saturdayExpenseAmount: string | null;
   saturdayExpenseReceipt: string | null;
+  saturdayDisableMinHours?: boolean;
   clientPoNumber?: string | null;
   dayRates?: Record<string, number | null>;
   dayRevenues?: Record<string, number>;
@@ -149,6 +156,7 @@ interface BatchData {
 export default function ApproveTimesheet() {
   const params = useParams();
   const token = params?.token as string;
+  const [globalPoNumber, setGlobalPoNumber] = useState("");
 
   const { data, isLoading, error } = useQuery<BatchData>({
     queryKey: [`/api/approve/${token}`],
@@ -160,6 +168,13 @@ export default function ApproveTimesheet() {
     enabled: !!token,
     retry: false,
   });
+
+  useEffect(() => {
+    if (data && !globalPoNumber) {
+      const existingPo = data.timesheets.find((t) => t.clientPoNumber)?.clientPoNumber;
+      if (existingPo) setGlobalPoNumber(existingPo);
+    }
+  }, [data]);
 
   if (isLoading) {
     return (
@@ -192,9 +207,37 @@ export default function ApproveTimesheet() {
 
   return (
     <div className="min-h-screen bg-background p-4">
+      <style>{`
+        @media print {
+          :root, .dark {
+            --background: 0 0% 100% !important;
+            --foreground: 222.2 84% 4.9% !important;
+            --card: 0 0% 100% !important;
+            --card-foreground: 222.2 84% 4.9% !important;
+            --muted: 210 40% 96.1% !important;
+            --muted-foreground: 215.4 16.3% 46.9% !important;
+            --border: 214.3 31.8% 91.4% !important;
+          }
+          body { background-color: white !important; color: black !important; }
+          .print\\:hidden { display: none !important; }
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          @page { margin: 10mm; size: A4 landscape; }
+          .card { page-break-inside: avoid; break-inside: avoid; border: 1px solid #e2e8f0 !important; box-shadow: none !important; }
+          .overflow-x-auto { overflow: visible !important; }
+          table { font-size: 11px !important; }
+          th, td { padding: 6px 4px !important; }
+          .whitespace-nowrap { white-space: normal !important; }
+        }
+      `}</style>
       <div className="max-w-6xl mx-auto py-8">
-        <div className="text-center mb-8">
-          <div className="inline-block p-3 rounded-full bg-primary/10 mb-4">
+        <div className="text-center mb-8 relative">
+          <div className="absolute right-0 top-0 print:hidden">
+            <Button variant="outline" onClick={() => window.print()}>
+              <Printer className="w-4 h-4 mr-2" />
+              Print / PDF
+            </Button>
+          </div>
+          <div className="inline-block p-3 rounded-full bg-primary/10 mb-4 print:hidden">
             <Building2 className="w-8 h-8 text-primary" />
           </div>
           <h1 className="text-3xl font-bold text-foreground mb-2" data-testid="heading-batch-approval">
@@ -205,14 +248,26 @@ export default function ApproveTimesheet() {
 
         <Card className="mb-6 border-l-4 border-l-primary">
           <CardHeader>
-            <div className="flex items-start justify-between">
+            <div className="flex items-start justify-between flex-wrap gap-4">
               <div>
                 <CardTitle>{data.batch.clientName}</CardTitle>
                 <CardDescription>
                   Week of {format(parseISO(data.batch.weekStartDate), "MMMM d, yyyy")}
                 </CardDescription>
               </div>
-              <Badge variant="outline">{data.timesheets.length} {data.timesheets.length === 1 ? 'driver' : 'drivers'}</Badge>
+              <div className="flex flex-col items-end gap-2">
+                <Badge variant="outline">{data.timesheets.length} {data.timesheets.length === 1 ? 'driver' : 'drivers'}</Badge>
+                <div className="flex items-center gap-2 mt-2">
+                  <Label htmlFor="global-po" className="whitespace-nowrap text-sm text-muted-foreground">PO Number:</Label>
+                  <Input 
+                    id="global-po" 
+                    value={globalPoNumber} 
+                    onChange={(e) => setGlobalPoNumber(e.target.value)} 
+                    placeholder="Optional" 
+                    className="h-8 w-40 text-sm print:border-none print:shadow-none print:p-0 print:h-auto print:w-auto print:text-right"
+                  />
+                </div>
+              </div>
             </div>
           </CardHeader>
         </Card>
@@ -223,6 +278,7 @@ export default function ApproveTimesheet() {
               key={timesheet.id}
               timesheet={timesheet}
               token={token!}
+              globalPoNumber={globalPoNumber}
               batchClientName={data.batch.clientName}
               batchData={data.batch}
             />
@@ -240,9 +296,10 @@ export default function ApproveTimesheet() {
 interface DriverTimesheetCardProps {
   timesheet: Timesheet;
   token: string;
+  globalPoNumber: string;
 }
 
-function DriverTimesheetCard({ timesheet, token, batchClientName, batchData }: DriverTimesheetCardProps & { batchClientName: string; batchData: ApprovalBatch }) {
+function DriverTimesheetCard({ timesheet, token, globalPoNumber, batchClientName, batchData }: DriverTimesheetCardProps & { batchClientName: string; batchData: ApprovalBatch }) {
   const [approveDialogOpen, setApproveDialogOpen] = useState(false);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
 
@@ -273,6 +330,7 @@ function DriverTimesheetCard({ timesheet, token, batchClientName, batchData }: D
       nightOut: timesheet.sundayNightOut,
       expenseAmount: timesheet.sundayExpenseAmount,
       expenseReceipt: timesheet.sundayExpenseReceipt,
+      disableMinHours: timesheet.sundayDisableMinHours,
     },
     {
       name: "Monday",
@@ -287,6 +345,7 @@ function DriverTimesheetCard({ timesheet, token, batchClientName, batchData }: D
       nightOut: timesheet.mondayNightOut,
       expenseAmount: timesheet.mondayExpenseAmount,
       expenseReceipt: timesheet.mondayExpenseReceipt,
+      disableMinHours: timesheet.mondayDisableMinHours,
     },
     {
       name: "Tuesday",
@@ -301,6 +360,7 @@ function DriverTimesheetCard({ timesheet, token, batchClientName, batchData }: D
       nightOut: timesheet.tuesdayNightOut,
       expenseAmount: timesheet.tuesdayExpenseAmount,
       expenseReceipt: timesheet.tuesdayExpenseReceipt,
+      disableMinHours: timesheet.tuesdayDisableMinHours,
     },
     {
       name: "Wednesday",
@@ -315,6 +375,7 @@ function DriverTimesheetCard({ timesheet, token, batchClientName, batchData }: D
       nightOut: timesheet.wednesdayNightOut,
       expenseAmount: timesheet.wednesdayExpenseAmount,
       expenseReceipt: timesheet.wednesdayExpenseReceipt,
+      disableMinHours: timesheet.wednesdayDisableMinHours,
     },
     {
       name: "Thursday",
@@ -329,6 +390,7 @@ function DriverTimesheetCard({ timesheet, token, batchClientName, batchData }: D
       nightOut: timesheet.thursdayNightOut,
       expenseAmount: timesheet.thursdayExpenseAmount,
       expenseReceipt: timesheet.thursdayExpenseReceipt,
+      disableMinHours: timesheet.thursdayDisableMinHours,
     },
     {
       name: "Friday",
@@ -343,6 +405,7 @@ function DriverTimesheetCard({ timesheet, token, batchClientName, batchData }: D
       nightOut: timesheet.fridayNightOut,
       expenseAmount: timesheet.fridayExpenseAmount,
       expenseReceipt: timesheet.fridayExpenseReceipt,
+      disableMinHours: timesheet.fridayDisableMinHours,
     },
     {
       name: "Saturday",
@@ -357,6 +420,7 @@ function DriverTimesheetCard({ timesheet, token, batchClientName, batchData }: D
       nightOut: timesheet.saturdayNightOut,
       expenseAmount: timesheet.saturdayExpenseAmount,
       expenseReceipt: timesheet.saturdayExpenseReceipt,
+      disableMinHours: timesheet.saturdayDisableMinHours,
     },
   ];
 
@@ -370,8 +434,8 @@ function DriverTimesheetCard({ timesheet, token, batchClientName, batchData }: D
   const getTotalHours = () => {
     return workedDays.reduce((sum, day) => {
       const actualHours = parseFloat(day.total || "0");
-      // Skip minimum for 0-hour days
-      const billableHours = actualHours > 0 ? Math.max(actualHours, minimumBillableHours) : 0;
+      // Skip minimum for 0-hour days or if disabled
+      const billableHours = (actualHours > 0 && !day.disableMinHours) ? Math.max(actualHours, minimumBillableHours) : actualHours;
       return sum + billableHours;
     }, 0);
   };
@@ -381,8 +445,8 @@ function DriverTimesheetCard({ timesheet, token, batchClientName, batchData }: D
     let count = 0;
     workedDays.forEach(day => {
       const dayHours = parseFloat(day.total || "0");
-      // Flag shifts under 8 hours
-      if (dayHours > 0 && dayHours < 8) {
+      // Flag shifts under 8 hours (unless disabled)
+      if (dayHours > 0 && dayHours < 8 && !day.disableMinHours) {
         count++;
       }
     });
@@ -427,7 +491,7 @@ function DriverTimesheetCard({ timesheet, token, batchClientName, batchData }: D
               )}
             </CardDescription>
           </div>
-          <div>
+          <div className="print:hidden">
             {timesheet.approvalStatus === "approved" ? (
               <Badge className="gap-1 bg-green-500 hover:bg-green-600">
                 <CheckCircle className="w-3 h-3" />
@@ -451,7 +515,7 @@ function DriverTimesheetCard({ timesheet, token, batchClientName, batchData }: D
         {workedDays.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-4">No hours logged this week</p>
         ) : (
-          <div className="rounded-md border overflow-x-auto">
+          <div className="rounded-md border overflow-x-auto print:overflow-visible print:border-none">
             <Table>
               <TableHeader className="bg-muted/50">
                 <TableRow>
@@ -472,10 +536,10 @@ function DriverTimesheetCard({ timesheet, token, batchClientName, batchData }: D
               <TableBody>
                 {workedDays.map((day) => {
                   const dayHours = parseFloat(day.total || "0");
-                  // Only apply minimum when actual hours > 0 (0-hour days are excluded above, but guard here too)
-                  const billableHours = dayHours > 0 ? Math.max(dayHours, minimumBillableHours) : 0;
-                  const minimumApplied = dayHours > 0 && billableHours > dayHours;
-                  const hasDiscrepancy = dayHours > 0 && dayHours < 8;
+                  // Only apply minimum when actual hours > 0 and not disabled
+                  const billableHours = (dayHours > 0 && !day.disableMinHours) ? Math.max(dayHours, minimumBillableHours) : dayHours;
+                  const minimumApplied = dayHours > 0 && billableHours > dayHours && !day.disableMinHours;
+                  const hasDiscrepancy = dayHours > 0 && dayHours < 8 && !day.disableMinHours;
 
                   return (
                     <TableRow 
@@ -558,8 +622,15 @@ function DriverTimesheetCard({ timesheet, token, batchClientName, batchData }: D
                   <TableCell className="font-bold text-sm">
                     {getTotalHours().toFixed(2)}h
                   </TableCell>
+                  <TableCell></TableCell>
+                  <TableCell className="font-bold text-sm text-green-300">
+                    £{calculateTotalPay()}
+                  </TableCell>
                   <TableCell className="font-semibold text-xs">
                     {workedDays.filter(day => day.nightOut === "true").length}
+                  </TableCell>
+                  <TableCell className="font-semibold text-xs">
+                    £{workedDays.reduce((sum, day) => sum + parseFloat(day.expenseAmount || "0"), 0).toFixed(2)}
                   </TableCell>
                 </TableRow>
               </TableBody>
@@ -597,7 +668,7 @@ function DriverTimesheetCard({ timesheet, token, batchClientName, batchData }: D
         )}
 
         {!isCompleted && (
-          <div className="flex gap-2 pt-4 border-t">
+          <div className="flex gap-2 pt-4 border-t print:hidden">
             <Dialog open={approveDialogOpen} onOpenChange={setApproveDialogOpen}>
               <DialogTrigger asChild>
                 <Button className="flex-1 gap-2 bg-green-600 hover:bg-green-700 text-white" data-testid={`button-approve-${timesheet.id}`}>
@@ -618,6 +689,7 @@ function DriverTimesheetCard({ timesheet, token, batchClientName, batchData }: D
                   driverName={timesheet.driverName}
                   timesheet={timesheet}
                   dayData={workedDays}
+                  globalPoNumber={globalPoNumber}
                   onSuccess={() => setApproveDialogOpen(false)}
                 />
               </DialogContent>
@@ -658,15 +730,15 @@ interface ApproveFormProps {
   driverName: string;
   timesheet: Timesheet;
   dayData: any[];
+  globalPoNumber: string;
   onSuccess: () => void;
 }
 
-function ApproveForm({ timesheetId, token, driverName, timesheet, dayData, onSuccess }: ApproveFormProps) {
+function ApproveForm({ timesheetId, token, driverName, timesheet, dayData, globalPoNumber, onSuccess }: ApproveFormProps) {
   const queryClient = useQueryClient();
   const [approverName, setApproverName] = useState("");
   const [rating, setRating] = useState("");
   const [comments, setComments] = useState("");
-  const [poNumber, setPoNumber] = useState(timesheet.clientPoNumber || "");
   const [showEditMode, setShowEditMode] = useState(false);
 
   const [editedTimes, setEditedTimes] = useState<Record<string, any>>({});
@@ -692,7 +764,7 @@ function ApproveForm({ timesheetId, token, driverName, timesheet, dayData, onSuc
         approvedBy: approverName,
         rating: rating ? parseInt(rating) : undefined,
         comments,
-        poNumber,
+        poNumber: globalPoNumber,
         modifications: Object.keys(modifications).length > 0 ? modifications : undefined,
       });
     },
@@ -831,17 +903,6 @@ function ApproveForm({ timesheetId, token, driverName, timesheet, dayData, onSuc
           onChange={(e) => setComments(e.target.value)}
           rows={3}
           data-testid="input-comments"
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="approve-po-number">PO Number (Optional)</Label>
-        <Input
-          id="approve-po-number"
-          placeholder="Enter PO Number (optional)"
-          value={poNumber}
-          onChange={(e) => setPoNumber(e.target.value)}
-          data-testid="input-po-number"
         />
       </div>
 

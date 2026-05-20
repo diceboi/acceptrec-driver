@@ -352,6 +352,11 @@ function CreateBatchForm({ timesheets, onSuccess }: CreateBatchFormProps) {
     queryKey: ["/api/driver-classes"],
   });
 
+  const { data: clientRates = [] } = useQuery<any[]>({
+    queryKey: [`/api/clients/${selectedClientId}/rates`],
+    enabled: !!selectedClientId,
+  });
+
   const createBatchMutation = useMutation({
     mutationFn: async (data: any) => {
       return await apiRequest("POST", "/api/approval-batches", data);
@@ -564,7 +569,30 @@ function CreateBatchForm({ timesheets, onSuccess }: CreateBatchFormProps) {
                     </div>
                     
                     {isExpanded && (
-                      <div className="px-4 pb-4 pt-1 border-t">
+                      <div className="px-4 pb-4 pt-3 border-t">
+                        <div className="flex justify-end mb-3 items-center gap-2">
+                          <Label className="text-xs text-muted-foreground">Apply to all days:</Label>
+                          <Select
+                            onValueChange={(val) => {
+                              dayDetails.forEach(d => handleClassAssignment(timesheet.id, d.day, val));
+                            }}
+                          >
+                            <SelectTrigger className="h-8 text-xs w-48 bg-muted/50">
+                              <SelectValue placeholder="Select class..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">— No class —</SelectItem>
+                              {driverClasses.map(dc => {
+                                const rate = clientRates.find((r: any) => r.driverClassId === dc.id);
+                                return (
+                                  <SelectItem key={dc.id} value={dc.id}>
+                                    {dc.name}{rate ? ` (£${rate.hourlyRate.toFixed(2)}/h)` : ''}
+                                  </SelectItem>
+                                );
+                              })}
+                            </SelectContent>
+                          </Select>
+                        </div>
                         <Table>
                           <TableHeader>
                             <TableRow>
@@ -595,9 +623,14 @@ function CreateBatchForm({ timesheets, onSuccess }: CreateBatchFormProps) {
                                       </SelectTrigger>
                                       <SelectContent>
                                         <SelectItem value="none">— No class —</SelectItem>
-                                        {driverClasses.map(dc => (
-                                          <SelectItem key={dc.id} value={dc.id}>{dc.name}</SelectItem>
-                                        ))}
+                                        {driverClasses.map(dc => {
+                                          const rate = clientRates.find((r: any) => r.driverClassId === dc.id);
+                                          return (
+                                            <SelectItem key={dc.id} value={dc.id}>
+                                              {dc.name}{rate ? ` (£${rate.hourlyRate.toFixed(2)}/h)` : ''}
+                                            </SelectItem>
+                                          );
+                                        })}
                                       </SelectContent>
                                     </Select>
                                   </TableCell>

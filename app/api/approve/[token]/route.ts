@@ -84,7 +84,7 @@ export async function GET(
         
         const dayTotal = parseFloat((ts as any)[`${day}Total`] || "0");
         const disableMinHours = (ts as any)[`${day}DisableMinHours`] || false;
-        const minHours = disableMinHours ? 0 : 8;
+        const minHours = disableMinHours ? 0 : clientMinimumHours;
         const billableHours = dayTotal > 0 ? Math.max(dayTotal, minHours) : 0;
         
         dayRevenues[day] = rate && billableHours > 0 ? rate * billableHours : 0;
