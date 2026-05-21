@@ -33,6 +33,7 @@ import { useEffect, useState, useMemo } from "react";
 import { Calendar, Upload } from "lucide-react";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { ClientAutocomplete } from "@/components/client-autocomplete";
+import { useBankHolidays } from "@/hooks/use-bank-holidays";
 
 type DayFields = {
   clientField: keyof InsertTimesheet;
@@ -46,9 +47,9 @@ type DayFields = {
   nightOutField: keyof InsertTimesheet;
   disableMinHoursField: keyof InsertTimesheet;
   expenseAmountField: keyof InsertTimesheet;
-  expenseReceiptField: keyof InsertTimesheet;
   driverRatingField: keyof InsertTimesheet;
   driverCommentsField: keyof InsertTimesheet;
+  isHolidayField: keyof InsertTimesheet;
 };
 
 // Handles overnight shifts (e.g., 22:00 to 08:00 = 10 hours)
@@ -132,6 +133,7 @@ export default function TimesheetForm() {
           expenseReceiptField: "sundayExpenseReceipt",
           driverRatingField: "sundayDriverRating",
           driverCommentsField: "sundayDriverComments",
+          isHolidayField: "sundayIsHoliday",
         },
       },
       {
@@ -152,6 +154,7 @@ export default function TimesheetForm() {
           expenseReceiptField: "mondayExpenseReceipt",
           driverRatingField: "mondayDriverRating",
           driverCommentsField: "mondayDriverComments",
+          isHolidayField: "mondayIsHoliday",
         },
       },
       {
@@ -172,6 +175,7 @@ export default function TimesheetForm() {
           expenseReceiptField: "tuesdayExpenseReceipt",
           driverRatingField: "tuesdayDriverRating",
           driverCommentsField: "tuesdayDriverComments",
+          isHolidayField: "tuesdayIsHoliday",
         },
       },
       {
@@ -192,6 +196,7 @@ export default function TimesheetForm() {
           expenseReceiptField: "wednesdayExpenseReceipt",
           driverRatingField: "wednesdayDriverRating",
           driverCommentsField: "wednesdayDriverComments",
+          isHolidayField: "wednesdayIsHoliday",
         },
       },
       {
@@ -212,6 +217,7 @@ export default function TimesheetForm() {
           expenseReceiptField: "thursdayExpenseReceipt",
           driverRatingField: "thursdayDriverRating",
           driverCommentsField: "thursdayDriverComments",
+          isHolidayField: "thursdayIsHoliday",
         },
       },
       {
@@ -232,6 +238,7 @@ export default function TimesheetForm() {
           expenseReceiptField: "fridayExpenseReceipt",
           driverRatingField: "fridayDriverRating",
           driverCommentsField: "fridayDriverComments",
+          isHolidayField: "fridayIsHoliday",
         },
       },
       {
@@ -252,6 +259,7 @@ export default function TimesheetForm() {
           expenseReceiptField: "saturdayExpenseReceipt",
           driverRatingField: "saturdayDriverRating",
           driverCommentsField: "saturdayDriverComments",
+          isHolidayField: "saturdayIsHoliday",
         },
       },
     ];
@@ -281,6 +289,7 @@ export default function TimesheetForm() {
         defaults[day.fields.expenseReceiptField] = "";
         defaults[day.fields.driverRatingField] = undefined;
         defaults[day.fields.driverCommentsField] = "";
+        defaults[day.fields.isHolidayField] = false;
       });
   
       // Type assertion because we are building it dynamically
@@ -304,6 +313,26 @@ export default function TimesheetForm() {
       }
     }, [user, form]);
   
+    // Fetch UK bank holidays
+    const { isBankHoliday, holidays } = useBankHolidays();
+
+    // Automatically check/uncheck holiday boxes when week or holidays load
+    useEffect(() => {
+      if (holidays.size === 0) return;
+      
+      const weekStartObj = parseISO(selectedWeek);
+      const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+      
+      for (let i = 0; i < 7; i++) {
+        const dayDate = addDays(weekStartObj, i);
+        const dateStr = format(dayDate, 'yyyy-MM-dd');
+        const isHol = isBankHoliday(dateStr);
+        const fieldName = `${dayNames[i]}IsHoliday`;
+        
+        form.setValue(fieldName as any, isHol);
+      }
+    }, [holidays, selectedWeek, form, isBankHoliday]);
+
     // Update week start date when week selection changes
     useEffect(() => {
       form.setValue("weekStartDate", selectedWeek);
@@ -634,7 +663,26 @@ export default function TimesheetForm() {
                   />
   
                   <div className="pt-3 border-t">
-                    <div className="grid grid-cols-2 gap-3 mb-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-2">
+                      <FormField
+                        control={form.control}
+                        name={day.fields.isHolidayField as any}
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center space-x-2 space-y-0 rounded-md border p-3">
+                            <FormControl>
+                              <Checkbox
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                                data-testid={`checkbox-${day.name.toLowerCase()}-holiday`}
+                              />
+                            </FormControl>
+                            <FormLabel className="text-xs font-normal cursor-pointer">
+                              Bank Holiday
+                            </FormLabel>
+                          </FormItem>
+                        )}
+                      />
+
                       <FormField
                         control={form.control}
                         name={day.fields.nightOutField as any}

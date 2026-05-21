@@ -199,6 +199,7 @@ export const timesheets = pgTable("timesheets", {
   mondayExpenseReceipt: text("monday_expense_receipt").notNull().default(""), // Object storage path to receipt
   mondayDriverRating: integer("monday_driver_rating"), // Driver's rating of client (1-10)
   mondayDriverComments: text("monday_driver_comments"), // Driver's feedback about client
+  mondayIsHoliday: boolean("monday_is_holiday").notNull().default(false),
   
   // Tuesday
   tuesdayClient: text("tuesday_client").notNull().default(""),
@@ -215,6 +216,7 @@ export const timesheets = pgTable("timesheets", {
   tuesdayExpenseReceipt: text("tuesday_expense_receipt").notNull().default(""),
   tuesdayDriverRating: integer("tuesday_driver_rating"), // Driver's rating of client (1-10)
   tuesdayDriverComments: text("tuesday_driver_comments"), // Driver's feedback about client
+  tuesdayIsHoliday: boolean("tuesday_is_holiday").notNull().default(false),
   
   // Wednesday
   wednesdayClient: text("wednesday_client").notNull().default(""),
@@ -231,6 +233,7 @@ export const timesheets = pgTable("timesheets", {
   wednesdayExpenseReceipt: text("wednesday_expense_receipt").notNull().default(""),
   wednesdayDriverRating: integer("wednesday_driver_rating"), // Driver's rating of client (1-10)
   wednesdayDriverComments: text("wednesday_driver_comments"), // Driver's feedback about client
+  wednesdayIsHoliday: boolean("wednesday_is_holiday").notNull().default(false),
   
   // Thursday
   thursdayClient: text("thursday_client").notNull().default(""),
@@ -247,6 +250,7 @@ export const timesheets = pgTable("timesheets", {
   thursdayExpenseReceipt: text("thursday_expense_receipt").notNull().default(""),
   thursdayDriverRating: integer("thursday_driver_rating"), // Driver's rating of client (1-10)
   thursdayDriverComments: text("thursday_driver_comments"), // Driver's feedback about client
+  thursdayIsHoliday: boolean("thursday_is_holiday").notNull().default(false),
   
   // Friday
   fridayClient: text("friday_client").notNull().default(""),
@@ -263,6 +267,7 @@ export const timesheets = pgTable("timesheets", {
   fridayExpenseReceipt: text("friday_expense_receipt").notNull().default(""),
   fridayDriverRating: integer("friday_driver_rating"), // Driver's rating of client (1-10)
   fridayDriverComments: text("friday_driver_comments"), // Driver's feedback about client
+  fridayIsHoliday: boolean("friday_is_holiday").notNull().default(false),
   
   // Saturday
   saturdayClient: text("saturday_client").notNull().default(""),
@@ -279,6 +284,7 @@ export const timesheets = pgTable("timesheets", {
   saturdayExpenseReceipt: text("saturday_expense_receipt").notNull().default(""),
   saturdayDriverRating: integer("saturday_driver_rating"), // Driver's rating of client (1-10)
   saturdayDriverComments: text("saturday_driver_comments"), // Driver's feedback about client
+  saturdayIsHoliday: boolean("saturday_is_holiday").notNull().default(false),
   
   // Sunday
   sundayClient: text("sunday_client").notNull().default(""),
@@ -295,6 +301,7 @@ export const timesheets = pgTable("timesheets", {
   sundayExpenseReceipt: text("sunday_expense_receipt").notNull().default(""),
   sundayDriverRating: integer("sunday_driver_rating"), // Driver's rating of client (1-10)
   sundayDriverComments: text("sunday_driver_comments"), // Driver's feedback about client
+  sundayIsHoliday: boolean("sunday_is_holiday").notNull().default(false),
   
   // Track if timesheet was created by client (stores client name) or driver (null)
   createdByClient: text("created_by_client"), // NULL = driver created, "Client Name" = client created
@@ -367,37 +374,37 @@ export const insertTimesheetSchema = createInsertSchema(timesheets).omit({
   mondayClient: true, mondayStart: true, mondayEnd: true, mondayBreak: true, 
   mondayPoa: true, mondayOtherWork: true, mondayTotal: true, mondayReview: true, 
   mondayNightOut: true, mondayExpenseAmount: true, mondayExpenseReceipt: true, 
-  mondayDriverRating: true, mondayDriverComments: true,
+  mondayDriverRating: true, mondayDriverComments: true, mondayIsHoliday: true,
   // Tuesday
   tuesdayClient: true, tuesdayStart: true, tuesdayEnd: true, tuesdayBreak: true, 
   tuesdayPoa: true, tuesdayOtherWork: true, tuesdayTotal: true, tuesdayReview: true, 
   tuesdayNightOut: true, tuesdayExpenseAmount: true, tuesdayExpenseReceipt: true, 
-  tuesdayDriverRating: true, tuesdayDriverComments: true,
+  tuesdayDriverRating: true, tuesdayDriverComments: true, tuesdayIsHoliday: true,
   // Wednesday
   wednesdayClient: true, wednesdayStart: true, wednesdayEnd: true, wednesdayBreak: true, 
   wednesdayPoa: true, wednesdayOtherWork: true, wednesdayTotal: true, wednesdayReview: true, 
   wednesdayNightOut: true, wednesdayExpenseAmount: true, wednesdayExpenseReceipt: true, 
-  wednesdayDriverRating: true, wednesdayDriverComments: true,
+  wednesdayDriverRating: true, wednesdayDriverComments: true, wednesdayIsHoliday: true,
   // Thursday
   thursdayClient: true, thursdayStart: true, thursdayEnd: true, thursdayBreak: true, 
   thursdayPoa: true, thursdayOtherWork: true, thursdayTotal: true, thursdayReview: true, 
   thursdayNightOut: true, thursdayExpenseAmount: true, thursdayExpenseReceipt: true, 
-  thursdayDriverRating: true, thursdayDriverComments: true,
+  thursdayDriverRating: true, thursdayDriverComments: true, thursdayIsHoliday: true,
   // Friday
   fridayClient: true, fridayStart: true, fridayEnd: true, fridayBreak: true, 
   fridayPoa: true, fridayOtherWork: true, fridayTotal: true, fridayReview: true, 
   fridayNightOut: true, fridayExpenseAmount: true, fridayExpenseReceipt: true, 
-  fridayDriverRating: true, fridayDriverComments: true,
+  fridayDriverRating: true, fridayDriverComments: true, fridayIsHoliday: true,
   // Saturday
   saturdayClient: true, saturdayStart: true, saturdayEnd: true, saturdayBreak: true, 
   saturdayPoa: true, saturdayOtherWork: true, saturdayTotal: true, saturdayReview: true, 
   saturdayNightOut: true, saturdayExpenseAmount: true, saturdayExpenseReceipt: true, 
-  saturdayDriverRating: true, saturdayDriverComments: true,
+  saturdayDriverRating: true, saturdayDriverComments: true, saturdayIsHoliday: true,
   // Sunday
   sundayClient: true, sundayStart: true, sundayEnd: true, sundayBreak: true, 
   sundayPoa: true, sundayOtherWork: true, sundayTotal: true, sundayReview: true, 
   sundayNightOut: true, sundayExpenseAmount: true, sundayExpenseReceipt: true, 
-  sundayDriverRating: true, sundayDriverComments: true,
+  sundayDriverRating: true, sundayDriverComments: true, sundayIsHoliday: true,
 }).extend({
   driverName: z.string().min(1, "Driver name is required"),
   weekStartDate: z.string().refine((val) => !isNaN(Date.parse(val)), {
@@ -419,6 +426,7 @@ export const insertTimesheetSchema = createInsertSchema(timesheets).omit({
   mondayExpenseReceipt: z.string().default(""),
   mondayDriverRating: z.number().optional(),
   mondayDriverComments: z.string().optional(),
+  mondayIsHoliday: z.boolean().default(false),
   
   // Tuesday
   tuesdayClient: z.string().default(""),
@@ -434,6 +442,7 @@ export const insertTimesheetSchema = createInsertSchema(timesheets).omit({
   tuesdayExpenseReceipt: z.string().default(""),
   tuesdayDriverRating: z.number().optional(),
   tuesdayDriverComments: z.string().optional(),
+  tuesdayIsHoliday: z.boolean().default(false),
   
   // Wednesday
   wednesdayClient: z.string().default(""),
@@ -449,6 +458,7 @@ export const insertTimesheetSchema = createInsertSchema(timesheets).omit({
   wednesdayExpenseReceipt: z.string().default(""),
   wednesdayDriverRating: z.number().optional(),
   wednesdayDriverComments: z.string().optional(),
+  wednesdayIsHoliday: z.boolean().default(false),
   
   // Thursday
   thursdayClient: z.string().default(""),
@@ -464,6 +474,7 @@ export const insertTimesheetSchema = createInsertSchema(timesheets).omit({
   thursdayExpenseReceipt: z.string().default(""),
   thursdayDriverRating: z.number().optional(),
   thursdayDriverComments: z.string().optional(),
+  thursdayIsHoliday: z.boolean().default(false),
   
   // Friday
   fridayClient: z.string().default(""),
@@ -479,6 +490,7 @@ export const insertTimesheetSchema = createInsertSchema(timesheets).omit({
   fridayExpenseReceipt: z.string().default(""),
   fridayDriverRating: z.number().optional(),
   fridayDriverComments: z.string().optional(),
+  fridayIsHoliday: z.boolean().default(false),
   
   // Saturday
   saturdayClient: z.string().default(""),
@@ -494,6 +506,7 @@ export const insertTimesheetSchema = createInsertSchema(timesheets).omit({
   saturdayExpenseReceipt: z.string().default(""),
   saturdayDriverRating: z.number().optional(),
   saturdayDriverComments: z.string().optional(),
+  saturdayIsHoliday: z.boolean().default(false),
   
   // Sunday
   sundayClient: z.string().default(""),
@@ -509,6 +522,7 @@ export const insertTimesheetSchema = createInsertSchema(timesheets).omit({
   sundayExpenseReceipt: z.string().default(""),
   sundayDriverRating: z.number().optional(),
   sundayDriverComments: z.string().optional(),
+  sundayIsHoliday: z.boolean().default(false),
 });
 
 export type InsertTimesheet = z.infer<typeof insertTimesheetSchema>;
@@ -590,6 +604,9 @@ export const driverClassRates = pgTable("driver_class_rates", {
   driverClassId: varchar("driver_class_id").notNull().references(() => driverClasses.id, { onDelete: 'cascade' }),
   clientId: varchar("client_id").notNull().references(() => clients.id, { onDelete: 'cascade' }),
   hourlyRate: real("hourly_rate").notNull().default(0),
+  saturdayRate: real("saturday_rate").notNull().default(0),
+  sundayRate: real("sunday_rate").notNull().default(0),
+  holidayRate: real("holiday_rate").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
@@ -602,6 +619,9 @@ export const insertDriverClassRateSchema = createInsertSchema(driverClassRates).
   updatedAt: true,
 }).extend({
   hourlyRate: z.number().min(0, "Rate must be at least 0"),
+  saturdayRate: z.number().min(0, "Rate must be at least 0").default(0),
+  sundayRate: z.number().min(0, "Rate must be at least 0").default(0),
+  holidayRate: z.number().min(0, "Rate must be at least 0").default(0),
 });
 
 export type DriverClassRate = typeof driverClassRates.$inferSelect;

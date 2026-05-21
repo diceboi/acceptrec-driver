@@ -57,6 +57,9 @@ interface ClassRate {
   driverClassId: string;
   clientId: string;
   hourlyRate: number;
+  saturdayRate: number;
+  sundayRate: number;
+  holidayRate: number;
   clientName: string;
 }
 
@@ -80,6 +83,7 @@ interface ClientWeekGroup {
       dayLabel: string;
       client: string;
       hours: number;
+      isHoliday: boolean;
     }[];
   }[];
   totalActualHours: number;
@@ -151,7 +155,7 @@ export default function PayrollPage() {
   });
 
   // Helper: get rate for a class + client combo
-  const getClassRate = (classId: string, clientName: string): number | null => {
+  const getClassRate = (classId: string, clientName: string, day: string = 'weekday', isHoliday: boolean = false): number | null => {
     if (!clients) return null;
     // Find the client ID from name
     const normalizedName = normalizeClientName(clientName);
@@ -159,7 +163,13 @@ export default function PayrollPage() {
     if (!matchedClient) return null;
 
     const rate = allClassRates.find(r => r.driverClassId === classId && r.clientId === matchedClient.id);
-    return rate?.hourlyRate ?? null;
+    if (!rate) return null;
+    
+    if (isHoliday && rate.holidayRate > 0) return rate.holidayRate;
+    if (day === 'saturday' && rate.saturdayRate > 0) return rate.saturdayRate;
+    if (day === 'sunday' && rate.sundayRate > 0) return rate.sundayRate;
+    
+    return rate.hourlyRate;
   };
 
   // Helper: get class name by ID
@@ -303,17 +313,18 @@ export default function PayrollPage() {
 
       const week = weeks.get(weekStart)!;
 
+      const ts = timesheet as any;
       const days = [
-        { day: "sunday", dayLabel: "Sun", client: timesheet.sundayClient, total: timesheet.sundayTotal },
-        { day: "monday", dayLabel: "Mon", client: timesheet.mondayClient, total: timesheet.mondayTotal },
-        { day: "tuesday", dayLabel: "Tue", client: timesheet.tuesdayClient, total: timesheet.tuesdayTotal },
-        { day: "wednesday", dayLabel: "Wed", client: timesheet.wednesdayClient, total: timesheet.wednesdayTotal },
-        { day: "thursday", dayLabel: "Thu", client: timesheet.thursdayClient, total: timesheet.thursdayTotal },
-        { day: "friday", dayLabel: "Fri", client: timesheet.fridayClient, total: timesheet.fridayTotal },
-        { day: "saturday", dayLabel: "Sat", client: timesheet.saturdayClient, total: timesheet.saturdayTotal },
+        { day: "sunday", dayLabel: "Sun", client: ts.sundayClient, total: ts.sundayTotal, isHoliday: ts.sundayIsHoliday },
+        { day: "monday", dayLabel: "Mon", client: ts.mondayClient, total: ts.mondayTotal, isHoliday: ts.mondayIsHoliday },
+        { day: "tuesday", dayLabel: "Tue", client: ts.tuesdayClient, total: ts.tuesdayTotal, isHoliday: ts.tuesdayIsHoliday },
+        { day: "wednesday", dayLabel: "Wed", client: ts.wednesdayClient, total: ts.wednesdayTotal, isHoliday: ts.wednesdayIsHoliday },
+        { day: "thursday", dayLabel: "Thu", client: ts.thursdayClient, total: ts.thursdayTotal, isHoliday: ts.thursdayIsHoliday },
+        { day: "friday", dayLabel: "Fri", client: ts.fridayClient, total: ts.fridayTotal, isHoliday: ts.fridayIsHoliday },
+        { day: "saturday", dayLabel: "Sat", client: ts.saturdayClient, total: ts.saturdayTotal, isHoliday: ts.saturdayIsHoliday },
       ];
 
-      const clientData = new Map<string, { actualHours: number; daysWorked: number; dayDetails: { day: string; dayLabel: string; client: string; hours: number }[] }>();
+      const clientData = new Map<string, { actualHours: number; daysWorked: number; dayDetails: { day: string; dayLabel: string; client: string; hours: number; isHoliday: boolean }[] }>();
       
       days.forEach(dayInfo => {
         if (dayInfo.client && dayInfo.client.trim()) {
@@ -322,7 +333,7 @@ export default function PayrollPage() {
             const existing = clientData.get(dayInfo.client) || { actualHours: 0, daysWorked: 0, dayDetails: [] };
             existing.actualHours += hours;
             existing.daysWorked += 1;
-            existing.dayDetails.push({ day: dayInfo.day, dayLabel: dayInfo.dayLabel, client: dayInfo.client, hours });
+            existing.dayDetails.push({ day: dayInfo.day, dayLabel: dayInfo.dayLabel, client: dayInfo.client, hours, isHoliday: dayInfo.isHoliday });
             clientData.set(dayInfo.client, existing);
           }
         }
@@ -574,7 +585,7 @@ export default function PayrollPage() {
                                           <TableBody>
                                             {driver.dayDetails.map(dayDetail => {
                                               const assignedClassId = classAssignments[driver.timesheetId]?.[dayDetail.day] || "";
-                                              const resolvedRate = assignedClassId ? getClassRate(assignedClassId, client.client) : null;
+                                              const resolvedRate = assignedClassId ? getClassRate(assignedClassId, client.client, dayDetail.day, dayDetail.isHoliday) : null;
                                               
                                               return (
                                                 <TableRow key={dayDetail.day} className="border-0">

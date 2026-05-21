@@ -24,6 +24,9 @@ export async function GET(
         driverClassId: driverClassRates.driverClassId,
         clientId: driverClassRates.clientId,
         hourlyRate: driverClassRates.hourlyRate,
+        saturdayRate: driverClassRates.saturdayRate,
+        sundayRate: driverClassRates.sundayRate,
+        holidayRate: driverClassRates.holidayRate,
         driverClassName: driverClasses.name,
       })
       .from(driverClassRates)

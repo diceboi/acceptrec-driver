@@ -9,6 +9,9 @@ const bulkRatesSchema = z.object({
   rates: z.array(z.object({
     clientId: z.string().min(1),
     hourlyRate: z.number().min(0),
+    saturdayRate: z.number().min(0).default(0),
+    sundayRate: z.number().min(0).default(0),
+    holidayRate: z.number().min(0).default(0),
   })),
 });
 
@@ -37,6 +40,9 @@ export async function GET(
         driverClassId: driverClassRates.driverClassId,
         clientId: driverClassRates.clientId,
         hourlyRate: driverClassRates.hourlyRate,
+        saturdayRate: driverClassRates.saturdayRate,
+        sundayRate: driverClassRates.sundayRate,
+        holidayRate: driverClassRates.holidayRate,
         clientName: clients.companyName,
       })
       .from(driverClassRates)
@@ -94,7 +100,13 @@ export async function PUT(
       if (existing) {
         const [updated] = await db
           .update(driverClassRates)
-          .set({ hourlyRate: rate.hourlyRate, updatedAt: new Date() })
+          .set({ 
+            hourlyRate: rate.hourlyRate, 
+            saturdayRate: rate.saturdayRate,
+            sundayRate: rate.sundayRate,
+            holidayRate: rate.holidayRate,
+            updatedAt: new Date() 
+          })
           .where(eq(driverClassRates.id, existing.id))
           .returning();
         results.push(updated);
@@ -105,6 +117,9 @@ export async function PUT(
             driverClassId: id,
             clientId: rate.clientId,
             hourlyRate: rate.hourlyRate,
+            saturdayRate: rate.saturdayRate,
+            sundayRate: rate.sundayRate,
+            holidayRate: rate.holidayRate,
           })
           .returning();
         results.push(inserted);

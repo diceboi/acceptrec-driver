@@ -2,11 +2,12 @@
 
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertTimesheetSchema, type InsertTimesheet, type Timesheet } from "@/shared/schema";
+import { insertTimesheetSchema, type InsertTimesheet, type Timesheet, type UpdateTimesheet } from "@/shared/schema";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
+import { useBankHolidays } from "@/hooks/use-bank-holidays";
 import {
   Dialog,
   DialogContent,
@@ -33,7 +34,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle, PenLine } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { format, parseISO, addDays, startOfWeek, subWeeks } from "date-fns";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ClientAutocomplete } from "@/components/client-autocomplete";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { Upload, Calendar } from "lucide-react";
@@ -65,6 +66,9 @@ type DayFields = {
   expenseAmountField: keyof InsertTimesheet;
   expenseReceiptField: keyof InsertTimesheet;
   reviewField: keyof InsertTimesheet;
+  driverRatingField: keyof UpdateTimesheet;
+  driverCommentsField: keyof UpdateTimesheet;
+  isHolidayField: keyof UpdateTimesheet;
 };
 
 // Handles overnight shifts (e.g., 22:00 to 08:00 = 10 hours)
@@ -128,6 +132,9 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
           expenseAmountField: "sundayExpenseAmount",
           expenseReceiptField: "sundayExpenseReceipt",
           reviewField: "sundayReview",
+          driverRatingField: "sundayDriverRating",
+          driverCommentsField: "sundayDriverComments",
+          isHolidayField: "sundayIsHoliday",
         },
       },
       {
@@ -146,6 +153,9 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
           expenseAmountField: "mondayExpenseAmount",
           expenseReceiptField: "mondayExpenseReceipt",
           reviewField: "mondayReview",
+          driverRatingField: "mondayDriverRating",
+          driverCommentsField: "mondayDriverComments",
+          isHolidayField: "mondayIsHoliday",
         },
       },
       {
@@ -164,6 +174,9 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
           expenseAmountField: "tuesdayExpenseAmount",
           expenseReceiptField: "tuesdayExpenseReceipt",
           reviewField: "tuesdayReview",
+          driverRatingField: "tuesdayDriverRating",
+          driverCommentsField: "tuesdayDriverComments",
+          isHolidayField: "tuesdayIsHoliday",
         },
       },
       {
@@ -182,6 +195,9 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
           expenseAmountField: "wednesdayExpenseAmount",
           expenseReceiptField: "wednesdayExpenseReceipt",
           reviewField: "wednesdayReview",
+          driverRatingField: "wednesdayDriverRating",
+          driverCommentsField: "wednesdayDriverComments",
+          isHolidayField: "wednesdayIsHoliday",
         },
       },
       {
@@ -200,6 +216,9 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
           expenseAmountField: "thursdayExpenseAmount",
           expenseReceiptField: "thursdayExpenseReceipt",
           reviewField: "thursdayReview",
+          driverRatingField: "thursdayDriverRating",
+          driverCommentsField: "thursdayDriverComments",
+          isHolidayField: "thursdayIsHoliday",
         },
       },
       {
@@ -218,6 +237,9 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
           expenseAmountField: "fridayExpenseAmount",
           expenseReceiptField: "fridayExpenseReceipt",
           reviewField: "fridayReview",
+          driverRatingField: "fridayDriverRating",
+          driverCommentsField: "fridayDriverComments",
+          isHolidayField: "fridayIsHoliday",
         },
       },
       {
@@ -236,6 +258,9 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
           expenseAmountField: "saturdayExpenseAmount",
           expenseReceiptField: "saturdayExpenseReceipt",
           reviewField: "saturdayReview",
+          driverRatingField: "saturdayDriverRating",
+          driverCommentsField: "saturdayDriverComments",
+          isHolidayField: "saturdayIsHoliday",
         },
       },
     ];
@@ -261,9 +286,12 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
       defaults[day.fields.totalField] = timesheet[day.fields.totalField as keyof Timesheet] || "0";
       defaults[day.fields.nightOutField] = timesheet[day.fields.nightOutField as keyof Timesheet] || "false";
       defaults[day.fields.disableMinHoursField] = timesheet[day.fields.disableMinHoursField as keyof Timesheet] || false;
-      defaults[day.fields.expenseAmountField] = timesheet[day.fields.expenseAmountField as keyof Timesheet] || "0";
+      defaults[day.fields.expenseAmountField] = String(timesheet[day.fields.expenseAmountField as keyof Timesheet] || "");
       defaults[day.fields.expenseReceiptField] = timesheet[day.fields.expenseReceiptField as keyof Timesheet] || "";
       defaults[day.fields.reviewField] = timesheet[day.fields.reviewField as keyof Timesheet] || "";
+      defaults[day.fields.driverRatingField] = timesheet[day.fields.driverRatingField as keyof Timesheet] || undefined;
+      defaults[day.fields.driverCommentsField] = timesheet[day.fields.driverCommentsField as keyof Timesheet] || "";
+      defaults[day.fields.isHolidayField] = timesheet[day.fields.isHolidayField as keyof Timesheet] || false;
     });
 
     return defaults as InsertTimesheet;
@@ -278,6 +306,26 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
   const currentDaysOfWeek = getDaysOfWeek(selectedWeekStr);
 
   const isAdmin = role === "admin" || role === "super_admin";
+
+  const { isBankHoliday, holidays } = useBankHolidays();
+  const [initialWeek] = useState(timesheet.weekStartDate);
+
+  useEffect(() => {
+    if (holidays.size === 0) return;
+    if (selectedWeekStr === initialWeek) return; // Don't override existing saved data for the original week
+
+    const weekStartObj = parseISO(selectedWeekStr);
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    
+    for (let i = 0; i < 7; i++) {
+      const dayDate = addDays(weekStartObj, i);
+      const dateStr = format(dayDate, 'yyyy-MM-dd');
+      const isHol = isBankHoliday(dateStr);
+      
+      const fieldName = `${dayNames[i]}IsHoliday`;
+      form.setValue(fieldName as any, isHol);
+    }
+  }, [holidays, selectedWeekStr, initialWeek, form, isBankHoliday]);
 
   const availableWeeks = useMemo(() => {
 
@@ -683,7 +731,28 @@ export default function EditDialog({ timesheet, open, onOpenChange }: EditDialog
                         />
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3 mb-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-2">
+                        <FormField
+                          control={form.control}
+                          name={day.fields.isHolidayField as any}
+                          render={({ field }) => (
+                            <FormItem className="flex flex-row items-center space-x-2 space-y-0 rounded-md border p-3">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                  data-testid={`checkbox-edit-${day.name.toLowerCase()}-holiday`}
+                                />
+                              </FormControl>
+                              <div className="space-y-1 leading-none">
+                                <FormLabel className="text-xs font-normal cursor-pointer">
+                                  Bank Holiday
+                                </FormLabel>
+                              </div>
+                            </FormItem>
+                          )}
+                        />
+
                         <FormField
                           control={form.control}
                           name={day.fields.nightOutField as any}

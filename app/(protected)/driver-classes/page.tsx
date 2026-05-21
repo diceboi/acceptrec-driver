@@ -62,6 +62,9 @@ interface ClassRate {
   driverClassId: string;
   clientId: string;
   hourlyRate: number;
+  saturdayRate: number;
+  sundayRate: number;
+  holidayRate: number;
   clientName: string;
 }
 
@@ -319,7 +322,7 @@ function ClassRow({
   const queryClient = useQueryClient();
   
   // Local state for rate inputs
-  const [localRates, setLocalRates] = useState<Record<string, string>>({});
+  const [localRates, setLocalRates] = useState<Record<string, { weekday: string; saturday: string; sunday: string; holiday: string; }>>({});
   const [hasChanges, setHasChanges] = useState(false);
 
   const { data: queryRates, isLoading } = useQuery<ClassRate[]>({
@@ -337,16 +340,21 @@ function ClassRow({
   // Populate local rates when data loads
   useEffect(() => {
     if (!queryRates) return;
-    const rateMap: Record<string, string> = {};
+    const rateMap: Record<string, { weekday: string; saturday: string; sunday: string; holiday: string; }> = {};
     queryRates.forEach(r => {
-      rateMap[r.clientId] = String(r.hourlyRate);
+      rateMap[r.clientId] = {
+        weekday: String(r.hourlyRate || ""),
+        saturday: String(r.saturdayRate || ""),
+        sunday: String(r.sundayRate || ""),
+        holiday: String(r.holidayRate || ""),
+      };
     });
     setLocalRates(rateMap);
     setHasChanges(false);
   }, [queryRates]);
 
   const saveRatesMutation = useMutation({
-    mutationFn: async (ratesPayload: { clientId: string; hourlyRate: number }[]) => {
+    mutationFn: async (ratesPayload: { clientId: string; hourlyRate: number; saturdayRate: number; sundayRate: number; holidayRate: number; }[]) => {
       const res = await fetch(`/api/driver-classes/${driverClass.id}/rates`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -366,8 +374,14 @@ function ClassRow({
     },
   });
 
-  const handleRateChange = (clientId: string, value: string) => {
-    setLocalRates(prev => ({ ...prev, [clientId]: value }));
+  const handleRateChange = (clientId: string, field: 'weekday'|'saturday'|'sunday'|'holiday', value: string) => {
+    setLocalRates(prev => ({ 
+      ...prev, 
+      [clientId]: {
+        ...(prev[clientId] || { weekday: "", saturday: "", sunday: "", holiday: "" }),
+        [field]: value
+      } 
+    }));
     setHasChanges(true);
   };
 
@@ -375,15 +389,18 @@ function ClassRow({
     const ratesPayload = clients
       .map(client => ({
         clientId: client.id,
-        hourlyRate: parseFloat(localRates[client.id] || "0") || 0,
+        hourlyRate: parseFloat(localRates[client.id]?.weekday || "0") || 0,
+        saturdayRate: parseFloat(localRates[client.id]?.saturday || "0") || 0,
+        sundayRate: parseFloat(localRates[client.id]?.sunday || "0") || 0,
+        holidayRate: parseFloat(localRates[client.id]?.holiday || "0") || 0,
       }))
-      .filter(r => r.hourlyRate > 0 || rates.some(existing => existing.clientId === r.clientId));
+      .filter(r => r.hourlyRate > 0 || r.saturdayRate > 0 || r.sundayRate > 0 || r.holidayRate > 0 || rates.some(existing => existing.clientId === r.clientId));
 
     saveRatesMutation.mutate(ratesPayload);
   };
 
   // Count how many clients have rates set
-  const rateCount = rates.filter(r => r.hourlyRate > 0).length;
+  const rateCount = rates.filter(r => r.hourlyRate > 0 || r.saturdayRate > 0 || r.sundayRate > 0 || r.holidayRate > 0).length;
 
   return (
     <Collapsible open={isExpanded} onOpenChange={onToggle}>
@@ -428,23 +445,60 @@ function ClassRow({
             ) : (
               <div className="grid gap-2">
                 {clients.map(client => (
-                  <div key={client.id} className="flex items-center justify-between p-3 bg-background border rounded-md">
-                    <div className="flex items-center gap-3 flex-1">
+                  <div key={client.id} className="flex flex-col sm:flex-row sm:items-start justify-between p-4 bg-background border rounded-md gap-4">
+                    <div className="flex items-center gap-3 flex-1 mt-1">
                       <Building2 className="w-4 h-4 text-muted-foreground shrink-0" />
                       <p className="font-medium text-sm">{client.companyName}</p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-muted-foreground">£</span>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        className="w-28 h-8 text-sm"
-                        placeholder="0.00"
-                        value={localRates[client.id] ?? ""}
-                        onChange={(e) => handleRateChange(client.id, e.target.value)}
-                      />
-                      <span className="text-xs text-muted-foreground">/hr</span>
+                    <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-row sm:gap-4">
+                      <div className="flex flex-col gap-1">
+                        <span className="text-xs text-muted-foreground">Weekday</span>
+                        <div className="flex items-center gap-1">
+                          <span className="text-sm text-muted-foreground">£</span>
+                          <Input
+                            type="number" step="0.01" min="0" className="w-20 h-8 text-sm px-2"
+                            placeholder="0.00"
+                            value={localRates[client.id]?.weekday ?? ""}
+                            onChange={(e) => handleRateChange(client.id, 'weekday', e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <span className="text-xs text-muted-foreground">Saturday</span>
+                        <div className="flex items-center gap-1">
+                          <span className="text-sm text-muted-foreground">£</span>
+                          <Input
+                            type="number" step="0.01" min="0" className="w-20 h-8 text-sm px-2"
+                            placeholder="0.00"
+                            value={localRates[client.id]?.saturday ?? ""}
+                            onChange={(e) => handleRateChange(client.id, 'saturday', e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <span className="text-xs text-muted-foreground">Sunday</span>
+                        <div className="flex items-center gap-1">
+                          <span className="text-sm text-muted-foreground">£</span>
+                          <Input
+                            type="number" step="0.01" min="0" className="w-20 h-8 text-sm px-2"
+                            placeholder="0.00"
+                            value={localRates[client.id]?.sunday ?? ""}
+                            onChange={(e) => handleRateChange(client.id, 'sunday', e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <span className="text-xs text-muted-foreground">Holiday</span>
+                        <div className="flex items-center gap-1">
+                          <span className="text-sm text-muted-foreground">£</span>
+                          <Input
+                            type="number" step="0.01" min="0" className="w-20 h-8 text-sm px-2"
+                            placeholder="0.00"
+                            value={localRates[client.id]?.holiday ?? ""}
+                            onChange={(e) => handleRateChange(client.id, 'holiday', e.target.value)}
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
                 ))}

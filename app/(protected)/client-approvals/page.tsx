@@ -530,6 +530,7 @@ function CreateBatchForm({ timesheets, onSuccess }: CreateBatchFormProps) {
                     dayLabel: DAY_LABELS[idx],
                     hours: parseFloat(ts[`${day}Total`] || "0"),
                     client: ts[`${day}Client`] as string || "",
+                    isHoliday: ts[`${day}IsHoliday`] as boolean || false,
                   };
                 }).filter(d => d.hours > 0);
 
@@ -625,9 +626,15 @@ function CreateBatchForm({ timesheets, onSuccess }: CreateBatchFormProps) {
                                         <SelectItem value="none">— No class —</SelectItem>
                                         {driverClasses.map(dc => {
                                           const rate = clientRates.find((r: any) => r.driverClassId === dc.id);
+                                          let specificRate = rate?.hourlyRate;
+                                          if (rate) {
+                                            if (dayDetail.isHoliday && rate.holidayRate > 0) specificRate = rate.holidayRate;
+                                            else if (dayDetail.day === 'saturday' && rate.saturdayRate > 0) specificRate = rate.saturdayRate;
+                                            else if (dayDetail.day === 'sunday' && rate.sundayRate > 0) specificRate = rate.sundayRate;
+                                          }
                                           return (
                                             <SelectItem key={dc.id} value={dc.id}>
-                                              {dc.name}{rate ? ` (£${rate.hourlyRate.toFixed(2)}/h)` : ''}
+                                              {dc.name}{rate ? ` (£${specificRate.toFixed(2)}/h)` : ''}
                                             </SelectItem>
                                           );
                                         })}

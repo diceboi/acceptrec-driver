@@ -74,14 +74,19 @@ export async function POST(req: Request) {
     const classNameMap = new Map(allDriverClasses.map(dc => [dc.id, dc.name]));
 
     const allRates = await db.select().from(driverClassRates);
-    // Map: classId-clientId -> hourlyRate
-    const rateMap = new Map(allRates.map(r => [`${r.driverClassId}-${r.clientId}`, r.hourlyRate]));
+    // Map: classId-clientId -> rate object
+    const rateMap = new Map(allRates.map(r => [`${r.driverClassId}-${r.clientId}`, r]));
 
-    const getClassRateForClient = (classId: string, clientName: string): number | null => {
+    const getClassRateForClient = (classId: string, clientName: string, day: string = 'weekday', isHoliday: boolean = false): number | null => {
       const clientId = findClientId(clientName);
       if (!clientId) return null;
       const key = `${classId}-${clientId}`;
-      return rateMap.get(key) ?? null;
+      const rate = rateMap.get(key);
+      if (!rate) return null;
+      if (isHoliday && rate.holidayRate > 0) return rate.holidayRate;
+      if (day === 'saturday' && rate.saturdayRate > 0) return rate.saturdayRate;
+      if (day === 'sunday' && rate.sundayRate > 0) return rate.sundayRate;
+      return rate.hourlyRate;
     };
 
     // 4. Process Data into hierarchical structure (Week -> Client -> Drivers[])
@@ -95,13 +100,13 @@ export async function POST(req: Request) {
       const weekClients = weeks.get(weekStart)!;
 
       const days = [
-        { name: "Sunday", dayKey: "sunday", dayIndex: 0, client: ts.sundayClient, total: ts.sundayTotal, start: ts.sundayStart, end: ts.sundayEnd, break: ts.sundayBreak, poa: ts.sundayPoa, otherWork: ts.sundayOtherWork, nightOut: ts.sundayNightOut, expense: (ts as any).sundayExpenseAmount, disableMinHours: (ts as any).sundayDisableMinHours },
-        { name: "Monday", dayKey: "monday", dayIndex: 1, client: ts.mondayClient, total: ts.mondayTotal, start: ts.mondayStart, end: ts.mondayEnd, break: ts.mondayBreak, poa: ts.mondayPoa, otherWork: ts.mondayOtherWork, nightOut: ts.mondayNightOut, expense: (ts as any).mondayExpenseAmount, disableMinHours: (ts as any).mondayDisableMinHours },
-        { name: "Tuesday", dayKey: "tuesday", dayIndex: 2, client: ts.tuesdayClient, total: ts.tuesdayTotal, start: ts.tuesdayStart, end: ts.tuesdayEnd, break: ts.tuesdayBreak, poa: ts.tuesdayPoa, otherWork: ts.tuesdayOtherWork, nightOut: ts.tuesdayNightOut, expense: (ts as any).tuesdayExpenseAmount, disableMinHours: (ts as any).tuesdayDisableMinHours },
-        { name: "Wednesday", dayKey: "wednesday", dayIndex: 3, client: ts.wednesdayClient, total: ts.wednesdayTotal, start: ts.wednesdayStart, end: ts.wednesdayEnd, break: ts.wednesdayBreak, poa: ts.wednesdayPoa, otherWork: ts.wednesdayOtherWork, nightOut: ts.wednesdayNightOut, expense: (ts as any).wednesdayExpenseAmount, disableMinHours: (ts as any).wednesdayDisableMinHours },
-        { name: "Thursday", dayKey: "thursday", dayIndex: 4, client: ts.thursdayClient, total: ts.thursdayTotal, start: ts.thursdayStart, end: ts.thursdayEnd, break: ts.thursdayBreak, poa: ts.thursdayPoa, otherWork: ts.thursdayOtherWork, nightOut: ts.thursdayNightOut, expense: (ts as any).thursdayExpenseAmount, disableMinHours: (ts as any).thursdayDisableMinHours },
-        { name: "Friday", dayKey: "friday", dayIndex: 5, client: ts.fridayClient, total: ts.fridayTotal, start: ts.fridayStart, end: ts.fridayEnd, break: ts.fridayBreak, poa: ts.fridayPoa, otherWork: ts.fridayOtherWork, nightOut: ts.fridayNightOut, expense: (ts as any).fridayExpenseAmount, disableMinHours: (ts as any).fridayDisableMinHours },
-        { name: "Saturday", dayKey: "saturday", dayIndex: 6, client: ts.saturdayClient, total: ts.saturdayTotal, start: ts.saturdayStart, end: ts.saturdayEnd, break: ts.saturdayBreak, poa: ts.saturdayPoa, otherWork: ts.saturdayOtherWork, nightOut: ts.saturdayNightOut, expense: (ts as any).saturdayExpenseAmount, disableMinHours: (ts as any).saturdayDisableMinHours },
+        { name: "Sunday", dayKey: "sunday", dayIndex: 0, client: ts.sundayClient, total: ts.sundayTotal, start: ts.sundayStart, end: ts.sundayEnd, break: ts.sundayBreak, poa: ts.sundayPoa, otherWork: ts.sundayOtherWork, nightOut: ts.sundayNightOut, expense: (ts as any).sundayExpenseAmount, disableMinHours: (ts as any).sundayDisableMinHours, isHoliday: (ts as any).sundayIsHoliday },
+        { name: "Monday", dayKey: "monday", dayIndex: 1, client: ts.mondayClient, total: ts.mondayTotal, start: ts.mondayStart, end: ts.mondayEnd, break: ts.mondayBreak, poa: ts.mondayPoa, otherWork: ts.mondayOtherWork, nightOut: ts.mondayNightOut, expense: (ts as any).mondayExpenseAmount, disableMinHours: (ts as any).mondayDisableMinHours, isHoliday: (ts as any).mondayIsHoliday },
+        { name: "Tuesday", dayKey: "tuesday", dayIndex: 2, client: ts.tuesdayClient, total: ts.tuesdayTotal, start: ts.tuesdayStart, end: ts.tuesdayEnd, break: ts.tuesdayBreak, poa: ts.tuesdayPoa, otherWork: ts.tuesdayOtherWork, nightOut: ts.tuesdayNightOut, expense: (ts as any).tuesdayExpenseAmount, disableMinHours: (ts as any).tuesdayDisableMinHours, isHoliday: (ts as any).tuesdayIsHoliday },
+        { name: "Wednesday", dayKey: "wednesday", dayIndex: 3, client: ts.wednesdayClient, total: ts.wednesdayTotal, start: ts.wednesdayStart, end: ts.wednesdayEnd, break: ts.wednesdayBreak, poa: ts.wednesdayPoa, otherWork: ts.wednesdayOtherWork, nightOut: ts.wednesdayNightOut, expense: (ts as any).wednesdayExpenseAmount, disableMinHours: (ts as any).wednesdayDisableMinHours, isHoliday: (ts as any).wednesdayIsHoliday },
+        { name: "Thursday", dayKey: "thursday", dayIndex: 4, client: ts.thursdayClient, total: ts.thursdayTotal, start: ts.thursdayStart, end: ts.thursdayEnd, break: ts.thursdayBreak, poa: ts.thursdayPoa, otherWork: ts.thursdayOtherWork, nightOut: ts.thursdayNightOut, expense: (ts as any).thursdayExpenseAmount, disableMinHours: (ts as any).thursdayDisableMinHours, isHoliday: (ts as any).thursdayIsHoliday },
+        { name: "Friday", dayKey: "friday", dayIndex: 5, client: ts.fridayClient, total: ts.fridayTotal, start: ts.fridayStart, end: ts.fridayEnd, break: ts.fridayBreak, poa: ts.fridayPoa, otherWork: ts.fridayOtherWork, nightOut: ts.fridayNightOut, expense: (ts as any).fridayExpenseAmount, disableMinHours: (ts as any).fridayDisableMinHours, isHoliday: (ts as any).fridayIsHoliday },
+        { name: "Saturday", dayKey: "saturday", dayIndex: 6, client: ts.saturdayClient, total: ts.saturdayTotal, start: ts.saturdayStart, end: ts.saturdayEnd, break: ts.saturdayBreak, poa: ts.saturdayPoa, otherWork: ts.saturdayOtherWork, nightOut: ts.saturdayNightOut, expense: (ts as any).saturdayExpenseAmount, disableMinHours: (ts as any).saturdayDisableMinHours, isHoliday: (ts as any).saturdayIsHoliday },
       ];
 
       // Figure out which clients this driver worked for
@@ -150,7 +155,7 @@ export async function POST(req: Request) {
           let dayRate = fallbackRate;
           
           if (assignedClassId) {
-            const classRate = getClassRateForClient(assignedClassId, clientName);
+            const classRate = getClassRateForClient(assignedClassId, clientName, day.dayKey, day.isHoliday);
             if (classRate !== null) {
               dayRate = classRate;
             }
