@@ -47,6 +47,7 @@ type DayFields = {
   nightOutField: keyof InsertTimesheet;
   disableMinHoursField: keyof InsertTimesheet;
   expenseAmountField: keyof InsertTimesheet;
+  expenseReceiptField: keyof InsertTimesheet;
   driverRatingField: keyof InsertTimesheet;
   driverCommentsField: keyof InsertTimesheet;
   isHolidayField: keyof InsertTimesheet;
