@@ -2,7 +2,7 @@
 
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertTimesheetSchema, type InsertTimesheet, type Timesheet, type UpdateTimesheet } from "@/shared/schema";
+import { insertTimesheetSchema, type InsertTimesheet, type Timesheet } from "@/shared/schema";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api";
 import { toast } from "sonner";
@@ -66,9 +66,9 @@ type DayFields = {
   expenseAmountField: keyof InsertTimesheet;
   expenseReceiptField: keyof InsertTimesheet;
   reviewField: keyof InsertTimesheet;
-  driverRatingField: keyof UpdateTimesheet;
-  driverCommentsField: keyof UpdateTimesheet;
-  isHolidayField: keyof UpdateTimesheet;
+  driverRatingField: keyof InsertTimesheet;
+  driverCommentsField: keyof InsertTimesheet;
+  isHolidayField: keyof InsertTimesheet;
 };
 
 // Handles overnight shifts (e.g., 22:00 to 08:00 = 10 hours)
